@@ -23,7 +23,6 @@ pip install PyQt6
 pip install QtPy
 pip install PyQtWebEngine
 pip install dotenv
-pip install potenv
 pip install protobuf==5.29.3
 ```
 
