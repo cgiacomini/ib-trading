@@ -25,5 +25,6 @@ DATA_QUEUE_TIMEOUT = 5
 DEFAULT_HISTORICAL_DURATION = os.getenv("DEFAULT_HISTORICAL_DURATION", "30 D")
 # Default currency for trading
 DEFAULT_CURRENCY = os.getenv("DEFAULT_CURRENCY", "USD")
-
-
+SMA_SHORT_PERIOD = 20  # Default period for Simple Moving Average (SMA)
+SMA_LONG_PERIOD = 50  # Default period for Long Simple Moving Average (SMA)
+SCAN_CODE = "Top Percent Gainers"  # Default market scanner code

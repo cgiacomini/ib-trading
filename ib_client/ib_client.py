@@ -4,7 +4,7 @@ import queue
 from threading import Thread
 from ibapi.client import EClient
 from ibapi.wrapper import EWrapper
-from ibapi.contract import Contract, ContractDetails
+from ibapi.contract import Contract
 from ibapi.order import Order
 from ibapi.scanner import ScannerSubscription
 from ibapi.tag_value import TagValue

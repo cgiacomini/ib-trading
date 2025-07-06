@@ -19,6 +19,7 @@ if __name__ == "__main__":
     logger.info("Connected to IB Gateway.")
 
     client.set_chart_handler(chart_handler)
+    logger.info("Market scanner started.")
     chart_handler.set_client(client)
     time.sleep(1)
 
