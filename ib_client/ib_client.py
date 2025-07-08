@@ -10,6 +10,7 @@ from ibapi.scanner import ScannerSubscription
 from ibapi.tag_value import TagValue
 from shared.queue_manager import data_queue  # Importing shared queue
 from logger import logger
+from portfolio.portfolio_manager import PortfolioManager
 
 ###############################################################################
 class IBClient(EWrapper, EClient):
@@ -43,6 +44,12 @@ class IBClient(EWrapper, EClient):
     def set_chart_handler(self, chart_handler):
         """Assigns ChartHandler instance after creation."""
         self.chart_handler = chart_handler
+
+    ###########################################################################
+    def set_portfolio_manager(self, portfolio_data_file: str):
+        """Assigns PositionManager instance for managing trading positions."""
+        self.portfolio_manager = PortfolioManager(portfolio_data_file)
+        logger.info("Portfolio Manager set in IBClient.")
 
     ###########################################################################
     def error(self, reqId: int, errorTime: str, errorCode: int, errorString: str, advancedOrderRejectJson=""):
@@ -131,6 +138,10 @@ class IBClient(EWrapper, EClient):
             self.placeOrder(self.order_id, contract, order)
         else:
             logger.info(f"Placed {action} order for {quantity} shares of {contract.symbol} with order ID {self.order_id}")
+            # Update portfolio
+            quantity_change = quantity if action == "BUY" else -quantity
+            self.portfolio_manager.update_position(contract, quantity_change)
+# ...
     ###########################################################################
     def orderStatus(self, orderId: int, status: str, filled: float, remaining: float,
                     avgFillPrice: float, permId: int, parentId: int,

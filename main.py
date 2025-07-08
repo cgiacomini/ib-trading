@@ -5,10 +5,9 @@ from config import DEFAULT_HOST, TRADING_PORT, DEFAULT_CLIENT_ID
 from chart_handler.chart import ChartHandler
 from ib_client.ib_client import IBClient
 from logger import logger
+from portfolio.portfolio_manager import PortfolioManager
 
-# Import default configuration
-
-###########################################################################
+###############################################################################
 # Main entry point for the IB Client application
 if __name__ == "__main__":
     logger.info("Starting IB Client...")
@@ -16,6 +15,9 @@ if __name__ == "__main__":
 
     chart_handler = ChartHandler()
     client = IBClient(config.DEFAULT_HOST, config.TRADING_PORT, config.DEFAULT_CLIENT_ID)
+    portfolio_manager = PortfolioManager()
+    portfolio_manager.set_client(client)
+    
     logger.info("Connected to IB Gateway.")
 
     client.set_chart_handler(chart_handler)

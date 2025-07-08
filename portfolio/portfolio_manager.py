@@ -4,43 +4,46 @@ from ibapi.contract import Contract
 from logger import logger
 
 ###############################################################################
-# PositionManager class to manage trading positions.
+# PortfolioManager class to manage trading positions.
 # This class keeps track of positions in various contracts, allowing updates,
 # checks for existing positions, and retrieval of position details.
 # It also provides a method to clear all positions.
-class PositionManager:
+class PortfolioManager:
     ###########################################################################
     def __init__(self):
         """
-        Initializes the PositionManager with an empty positions dictionary.
-        This dictionary will hold positions keyed by contract symbol, with each 
+        Initializes the PortfolioManager with an empty positions dictionary.
+        This dictionary will hold positions keyed by contract symbol, with each
         position containing details such as contract, quantity, and average cost.
         """
-        self.positions: Dict[str, Dict] = {}
+        logger.info("Initializing PortfolioManager...")
+        self.client = None  # Placeholder for IBClient instance
 
     ###########################################################################
-    def update_position(self, contract: Contract, position: float, avg_cost: float):
-        """ 
+    def update_position(self, contract: Contract, quantity_change: int):
+        """
         Updates the position for a given contract.
         """
-        symbol = contract.symbol
-        if position != 0:
-            self.positions[symbol] = {
-                "contract": contract,
-                "quantity": position,
-                "avg_cost": avg_cost
-            }
-        else:
-            self.positions.pop(symbol, None)
-
+        logger.info(f"Updating position for {contract.symbol} with quantity change: {quantity_change}")
+        
     ###########################################################################
     def has_position(self, symbol: str) -> bool:
-        return symbol in self.positions
+        logger.info(f"Checking position for {symbol}")
+        return True
 
     ###########################################################################
     def get_position(self, symbol: str):
-        return self.positions.get(symbol)
-    
+        logger.info(f"Retrieving position for {symbol}")
+
     ###########################################################################
     def clear(self):
-        self.positions.clear()
+        logger.info("Clearing all positions...")
+
+    ###########################################################################
+    def set_client(self, client):
+        """Assigns IBClient instance after creation.
+
+        Args:
+            client (IBClient): The IBClient instance managing the connection.
+        """
+        self.client = client

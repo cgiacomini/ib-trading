@@ -46,14 +46,14 @@ class ChartHandler:
         self.chart.hotkey('shift', 'S', self.place_order)
         # Placeholder for IBClient instance
         self.client = None
+        self.portfolio_manager = None
         # Placeholder for short SMA lines
         self.sma_short_line = None
         self.sma_long_line = None
         # Create a table to display portfolio data
-        self.table = self.chart.create_table( 
-            name='portfolio',
+        self.table = self.chart.create_table(
             width=0.3, height=0.2,
-            headings=('symbol', 'position', 'avg cost', 'market price', 'unrealized pnl'),
+            headings=('symbol', 'position', 'avg cost', 'market price', 'PL'),
             widths=(0.2, 0.1, 0.2, 0.2, 0.3),
             alignments=('center', 'center', 'right', 'right', 'right'),
             position='left', func=self. on_row_click)
@@ -98,6 +98,9 @@ class ChartHandler:
     def on_row_click(self, row):
         self.chart.topbar['symbol'].set(row['symbol'])
         self.get_bar_data(row['symbol'], config.DEFAULT_TIMEFRAME)
+        row['PL'] = round(row['PL']+1, 2)
+        row.background_color('PL', 'green' if row['PL'] > 0 else 'red')
+        self.table.footer[1] = row['symbol']
 
     ##########################################################################
     def calculate_sma(self, df, period: int = 20):
