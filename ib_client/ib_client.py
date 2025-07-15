@@ -1,5 +1,5 @@
-import datetime
-import time
+import datetime, os
+import time, csv
 import queue
 from threading import Thread
 from ibapi.client import EClient
@@ -89,6 +89,67 @@ class IBClient(EWrapper, EClient):
         # Add the data to the shared queue for processing
         data_queue.put(data)
         logger.debug(f"Received historical data for request ID {req_id}: {data}")
+
+    ###########################################################################
+    def realtimeBar(self, reqId, time, open_, high, low, close, volume, wap, count):
+        return super().realtimeBar(reqId, time, open_, high, low, close, volume, wap, count)
+        """Processes real-time bar data received from IB.
+        This method is called for each real-time bar of data. 
+        Converts IB bar data into a dictionary and adds it to the data queue.
+        Args:
+            reqId (int): The request ID for real-time data.
+            time (int): The timestamp of the bar.
+            open_ (float): Opening price of the bar.
+            high (float): Highest price of the bar.
+            low (float): Lowest price of the bar.
+            close (float): Closing price of the bar.
+            volume (int): Volume of the bar.
+            wap (float): Weighted average price of the bar.
+            count (int): Number of trades in the bar.
+        """
+        t = datetime.datetime.fromtimestamp(int(time))
+        data = {
+            'date': t,
+            'open': open_,
+            'high': high,
+            'low': low,
+            'close': close,
+            'volume': int(volume)
+        }
+        # Add the data to the shared queue for processing
+        data_queue.put(data)
+        logger.debug(f"Received real-time bar data for request ID {reqId}: {data}")
+        
+    # ###########################################################################
+    # JUST FOR TESTING PURPOSES
+    # def simulate_live_data(self, symbol, delay=1):
+    #     """Simulates live data feed from a CSV file instead of from IBRK.
+    #     Reads data from a CSV file and calls the provided callback function
+    #     for each row, simulating a live data feed with a specified delay.
+    #     Args:
+    #         file_path (str): Path to the CSV file containing historical data.
+    #         callback (function): Function to call with each data point.
+    #         delay (int, optional): Delay in seconds between data points. Defaults to 1.
+    #     """
+    #     file_path = f"data/{symbol}.csv"  # Assuming data files are stored in a 'data' directory
+    #     if not os.path.exists(file_path):
+    #         logger.error(f"Data file {file_path} does not exist.")
+    #         return
+    
+    #     with open(file_path, newline='') as csvfile:
+    #         reader = csv.DictReader(csvfile)
+    #         for row in reader:
+    #             # Convert row fields appropriately
+    #             data_point = {
+    #                 'date': datetime.datetime.strptime(row['date'], '%Y-%m-%d %H:%M:%S'),
+    #                 'open': float(row['open']),
+    #                 'high': float(row['high']),
+    #                 'low': float(row['low']),
+    #                 'close': float(row['close']),
+    #                 'volume': int(row['volume'])
+    #             }
+    #             self.historicalData(data_point)  # Handle data as if it's coming from IB
+    #             time.sleep(delay) # Simulate delay between incoming ticks
 
     ###########################################################################
     def historicalDataEnd(self, reqId: int, start: str, end: str):

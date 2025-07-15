@@ -1,6 +1,10 @@
+import sys
 import time
+import csv
+import datetime
 import queue
 import pandas as pd
+from signals_handler import signals_handler
 from shared.queue_manager import data_queue  # Import shared queue
 from ibapi.contract import Contract
 from ibapi.order import Order 
@@ -102,30 +106,61 @@ class ChartHandler:
         row.background_color('PL', 'green' if row['PL'] > 0 else 'red')
         self.table.footer[1] = row['symbol']
 
-    ##########################################################################
-    def calculate_sma(self, df, period: int = 20):
-        """Calculates the Simple Moving Average (SMA) for a given DataFrame.
+    ###########################################################################
+    def calculate_sma(self, df, period: int = config.SMA_SHORT_PERIOD):
+        """
+        Calculates the Simple Moving Average (SMA) and appends it as a new 
+        column in the original DataFrame.
 
         Args:
             df (pd.DataFrame): DataFrame containing 'close' prices.
             period (int): The period over which to calculate the SMA.
 
         Returns:
-            pd.Series: Series containing the calculated SMA values.
+            pd.DataFrame: Original DataFrame with an added SMA column.
         """
         logger.debug(f"Calculating SMA for period: {period}")
+        if df.empty:
+            logger.warning("DataFrame is empty. Cannot calculate SMA.")
+            return df
         if 'close' not in df.columns:
             logger.error("DataFrame must contain 'close' column for SMA calculation.")
-            return pd.Series(dtype=float) # Return an empty Series
+            return df
         if period <= 0:
             logger.error("Period must be a positive integer for SMA calculation.")
-            return pd.Series(dtype=float) # Return an empty Series
-        # Calculate the rolling mean of the 'close' prices over the specified period
-        # dropna is cleaning the DataFrame to make sure we're only working with rows
-        # where both SMA values are valid (not NaN).
-        # The first  rows will be NaN since not enough data to calculeate the mean.
-        return pd.DataFrame({'time': df['date'],
-                             f'SMA {period}': df['close'].rolling(window=period).mean()}).dropna()
+            return df
+
+        sma_column = f'SMA_{period}'
+        df[sma_column] = df['close'].rolling(window=period).mean()
+        return df
+
+    ###########################################################################
+    def show_sma_line(self, period, color, line_attr_name, df: pd.DataFrame):
+        """Displays the Simple Moving Average (SMA) on the chart."""
+        line_attr = getattr(self, line_attr_name, None)
+        logger.debug(f"Showing SMA for period: {period}")
+        sma_column = f'SMA_{period}'
+
+        if sma_column not in df.columns:
+            logger.error(f"Missing column {sma_column} in DataFrame.")
+            return
+
+        sma_df = df[['date', sma_column]].dropna()
+        if not sma_df.empty:
+            if line_attr:
+                line_attr.set(sma_df)
+            else:
+                logger.info(f"Creating new SMA line for {period}")
+                new_line = self.chart.create_line(
+                    name=f"SMA_{period}",
+                    color=color,
+                    width=1
+                )
+                new_line.set(sma_df)
+                setattr(self, line_attr_name, new_line)
+        else:
+            logger.warning(f"No data available to display SMA_{period}.")
+            return
 
     ###########################################################################
     def update_chart(self):
@@ -141,42 +176,62 @@ class ChartHandler:
                 data = data_queue.get_nowait()
                 bars.append(data)
                 logger.debug(f"Received data from the queue: {bars[-1]}")
+                # set the data on the chart
+                df = pd.DataFrame(bars)
+                if not df.empty:
+                    self.chart.set(df)
+                    # Compute and show SMA_SHORT_PERIOD
+                    df = self.calculate_sma(df, config.SMA_SHORT_PERIOD)
+                    self.show_sma_line(config.SMA_SHORT_PERIOD, config.SMA_SHORT_COLOR, "sma_short_line", df)
+                    # Compute and show SMA_LONG_PERIOD
+                    df = self.calculate_sma(df, config.SMA_LONG_PERIOD)
+                    self.show_sma_line(config.SMA_LONG_PERIOD, config.SMA_LONG_COLOR, "sma_long_line", df)
+                    # Run the signal handler to check for buy/sell signals
+                    # We pass df which should contain the necessary columns
+                    # to compute the signals
+                    signal = signals_handler.BuyOrSellBasedOnSignals(df)
+                    if signal :
+                        self.chart.marker(
+                            text = f"{signal.capitalize()} Signal",
+                            position = 'below',
+                            shape = 'arrow_up' if signal == 'buy' else 'arrow_down',
+                            color = "#33de36" if signal == 'buy' else "#ea0b1e"
+                        )
         except queue.Empty:
             logger.info("No new data in queue.")
-        finally:
-            # set the data on the chart
-            df = pd.DataFrame(bars)
-            if not df.empty:
-                self.chart.set(df)
-
-                # Compute SMA_SHORT_PERIOD
-                sma_short_line_df = self.calculate_sma(df, config.SMA_SHORT_PERIOD)
-                if not sma_short_line_df.empty:
-                    if self.sma_short_line:
-                        self.sma_short_line.set(sma_short_line_df)
-                    else:
-                        self.sma_short_line = self.chart.create_line(
-                            name=f"SMA {config.SMA_SHORT_PERIOD}",
-                            color='blue',
-                            width=1
-                        )
-                        self.sma_short_line.set(sma_short_line_df)
-
-                # Compute SMA_LONG_PERIOD
-                sma_long_line_df = self.calculate_sma(df, config.SMA_LONG_PERIOD)
-                if not sma_long_line_df.empty:
-                    if self.sma_long_line:
-                        self.sma_long_line.set(sma_long_line_df)
-                    else:
-                        self.sma_long_line = self.chart.create_line(
-                            name=f"SMA {config.SMA_LONG_PERIOD}",
-                            color='red',
-                            width=1
-                        )
-                        self.sma_long_line.set(sma_long_line_df)
-            else:
-                logger.warning("No data to update the chart.")
         self.chart.spinner(False)
+
+    ###########################################################################
+    def request_realtime_data(self, symbol: str, timeframe: str):
+        """Requests real-time data for a specific symbol and timeframe.
+        Status:
+            IN PROGRESS
+
+        Args:
+            symbol (str): The stock symbol to request data for.
+            timeframe (str): The timeframe for the real-time data.
+        """
+        logger.info(f"Requesting real-time data for {symbol} with timeframe {timeframe}")
+        self.chart.spinner(False)
+        # Create a contract object for the stock symbol
+        contract = Contract()
+        contract.symbol = symbol
+        contract.secType = 'STK'
+        contract.exchange = 'SMART'
+        contract.currency = config.DEFAULT_CURRENCY
+
+        # Request real-time data from IB API
+        bar = self.client.reqRealTimeBars(
+            1,         # requestId: any unique integer ID for tracking
+            contract,  # The contract object (symbol, type, etc.)
+            5,         # barSize: 5 seconds. Should be configurable.
+            'TRADES',  # whatToShow: 'TRADES' for trade data
+            True,      # useRTH: True to only show data from regular trading hours
+            []         # chartOptions: leave empty unless using special features
+        )
+        time.sleep(1)
+        self.chart.watermark(symbol)
+        logger.info(f"Real-time data request sent for {symbol} with timeframe {timeframe}")
 
     ###########################################################################
     def request_data(self, symbol: str, timeframe: str):
@@ -211,7 +266,6 @@ class ChartHandler:
             keepUpToDate = False, # Static snapshot; True = streaming update
             chartOptions = []     # Leave empty unless using special features
         )
-
         time.sleep(1)
         self.chart.watermark(symbol)
         logger.info(f"Requesting data received")

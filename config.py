@@ -27,4 +27,6 @@ DEFAULT_HISTORICAL_DURATION = os.getenv("DEFAULT_HISTORICAL_DURATION", "30 D")
 DEFAULT_CURRENCY = os.getenv("DEFAULT_CURRENCY", "USD")
 SMA_SHORT_PERIOD = 20  # Default period for Simple Moving Average (SMA)
 SMA_LONG_PERIOD = 50  # Default period for Long Simple Moving Average (SMA)
+SMA_SHORT_COLOR = "blue"  # Color for short SMA line
+SMA_LONG_COLOR = "red"  # Color for long SMA line
 SCAN_CODE = "Top Percent Gainers"  # Default market scanner code

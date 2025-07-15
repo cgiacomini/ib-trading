@@ -1,4 +1,3 @@
-import os
 import time
 import config
 from config import DEFAULT_HOST, TRADING_PORT, DEFAULT_CLIENT_ID
@@ -6,7 +5,6 @@ from chart_handler.chart import ChartHandler
 from ib_client.ib_client import IBClient
 from logger import logger
 from portfolio.portfolio_manager import PortfolioManager
-
 ###############################################################################
 # Main entry point for the IB Client application
 if __name__ == "__main__":
@@ -27,5 +25,6 @@ if __name__ == "__main__":
 
     # Request initial data for a default symbol and timeframe
     logger.info("Requesting initial data...")
+
     chart_handler.request_data(config.INITIAL_SYMBOL, config.DEFAULT_TIMEFRAME)
     chart_handler.show_chart()
