@@ -23,10 +23,23 @@ DEFAULT_TIMEFRAME_OPTIONS = ('1 min', '5 mins', '15 mins', '1 hour')
 DATA_QUEUE_TIMEOUT = 5 
 # Default duration for historical data requests
 DEFAULT_HISTORICAL_DURATION = os.getenv("DEFAULT_HISTORICAL_DURATION", "30 D")
-# Default currency for trading
+# Exchange to use for the contract (e.g. SMART).
+CONTRACT_EXCHANGE = 'SMART'
+# Currency for the contract, e.g., 'USD'
 DEFAULT_CURRENCY = os.getenv("DEFAULT_CURRENCY", "USD")
-SMA_SHORT_PERIOD = 20  # Default period for Simple Moving Average (SMA)
-SMA_LONG_PERIOD = 50  # Default period for Long Simple Moving Average (SMA)
-SMA_SHORT_COLOR = "blue"  # Color for short SMA line
-SMA_LONG_COLOR = "red"  # Color for long SMA line
-SCAN_CODE = "Top Percent Gainers"  # Default market scanner code
+# Default Security type 'STK' = stock. Other types include 'OPT', 'FUT', 'CASH', etc
+SEC_TYPE = 'STK'
+# USE Regular Trading Hours)
+USE_RTH = True
+# Default Data type to request 'TRADES' for trade data 'MIDPOINT' for midpoint data, 'BID', 'ASK' for bid and ask data, etc
+WHAT_TO_SHOW = 'TRADES'
+# Default window period for Simple Moving Average (SMA)
+SMA_SHORT_PERIOD = 20
+# Default window period for Long Simple Moving Average (SMA)
+SMA_LONG_PERIOD = 50
+# Color for short SMA line
+SMA_SHORT_COLOR = "blue"
+# Color for long SMA line
+# Default market scanner code
+SMA_LONG_COLOR = "red"
+SCAN_CODE = "Top Percent Gainers"

@@ -11,6 +11,7 @@ from ibapi.order import Order
 from ibapi.client import ScannerSubscription
 from ibapi.tag_value import TagValue
 from lightweight_charts import Chart  # Assuming lightweight_charts is used
+from typing import Dict, List
 
 # Import default configuration
 import config
@@ -21,7 +22,8 @@ from logger import logger
 class ChartHandler:
     """Handles chart creation and updates using lightweight_charts.
 
-    This class manages the charting of historical data received from Interactive Brokers.
+    This class manages the charting of historical data received from 
+    Interactive Brokers.
     """
 
     ###########################################################################
@@ -31,7 +33,10 @@ class ChartHandler:
         Sets up the chart with a toolbox, legend, and top bar for symbol and
         timeframe selection.
         """
-        self.chart = Chart(toolbox=True, width=1000, inner_width=0.7, inner_height=1)
+        self.chart = Chart(toolbox=True, 
+                           width=1000, 
+                           inner_width=0.7, 
+                           inner_height=1)
         # Adds a legend to the chart
         self.chart.legend(True)
         self.chart.topbar.textbox('symbol', config.INITIAL_SYMBOL)
@@ -41,7 +46,8 @@ class ChartHandler:
                                    default=config.DEFAULT_TIMEFRAME,
                                    func=self.on_timeframe_selection)
         # Adds a button to take a screenshot of the chart
-        self.chart.topbar.button('screenshot', 'Screenshot', func=self.take_screenshot)
+        self.chart.topbar.button('screenshot', 'Screenshot', 
+                                 func=self.take_screenshot)
         # Set up a function to call when searching for symbol
         self.chart.events.search += self.on_search
         # Adds a hotkey to place a buy order
@@ -107,42 +113,40 @@ class ChartHandler:
         self.table.footer[1] = row['symbol']
 
     ###########################################################################
-    def calculate_sma(self, df, period: int = config.SMA_SHORT_PERIOD):
+    def update_data_with_sma(self, period: int, bars: List[Dict], data: Dict) -> Dict:
         """
-        Calculates the Simple Moving Average (SMA) and appends it as a new 
-        column in the original DataFrame.
+        Update received data bas adding a column for the SMA of the  given period
 
         Args:
-            df (pd.DataFrame): DataFrame containing 'close' prices.
             period (int): The period over which to calculate the SMA.
+            bars (Lis[Dict]): the current list of received data bars.
+            data (Dict): the last received bars still to append.
 
         Returns:
-            pd.DataFrame: Original DataFrame with an added SMA column.
+            data (Dict): the last received bar with the added new SMA column for
+                         the given period.
         """
-        logger.debug(f"Calculating SMA for period: {period}")
-        if df.empty:
-            logger.warning("DataFrame is empty. Cannot calculate SMA.")
-            return df
-        if 'close' not in df.columns:
-            logger.error("DataFrame must contain 'close' column for SMA calculation.")
-            return df
-        if period <= 0:
-            logger.error("Period must be a positive integer for SMA calculation.")
-            return df
 
-        sma_column = f'SMA_{period}'
-        df[sma_column] = df['close'].rolling(window=period).mean()
-        return df
+        temp_bars = bars + [data]
+        temp_df   = pd.DataFrame(temp_bars)
+        if len(temp_df) >= period:
+           sma_value = temp_df['close'].rolling(window=period).mean().iloc[-1]
+           data[f'SMA_{period}'] = round(sma_value, 2)
+        else:
+           data[f'SMA_{period}'] = None
+
+        return data
 
     ###########################################################################
     def show_sma_line(self, period, color, line_attr_name, df: pd.DataFrame):
         """Displays the Simple Moving Average (SMA) on the chart."""
+        
         line_attr = getattr(self, line_attr_name, None)
         logger.debug(f"Showing SMA for period: {period}")
         sma_column = f'SMA_{period}'
 
         if sma_column not in df.columns:
-            logger.error(f"Missing column {sma_column} in DataFrame.")
+            logger.warning(f"Missing column {sma_column} in DataFrame.")
             return
 
         sma_df = df[['date', sma_column]].dropna()
@@ -170,98 +174,81 @@ class ChartHandler:
         and updates the chart.
         """
         bars = []
+
         try:
             logger.info("Updating chart with new data from the queue.")
-            while True:
+    
+            # Drain the queue
+            while not data_queue.empty():
                 data = data_queue.get_nowait()
+                self.update_data_with_sma(config.SMA_SHORT_PERIOD, bars, data)
+                self.update_data_with_sma(config.SMA_LONG_PERIOD, bars, data)
                 bars.append(data)
-                logger.debug(f"Received data from the queue: {bars[-1]}")
-                # set the data on the chart
-                df = pd.DataFrame(bars)
-                if not df.empty:
-                    self.chart.set(df)
-                    # Compute and show SMA_SHORT_PERIOD
-                    df = self.calculate_sma(df, config.SMA_SHORT_PERIOD)
-                    self.show_sma_line(config.SMA_SHORT_PERIOD, config.SMA_SHORT_COLOR, "sma_short_line", df)
-                    # Compute and show SMA_LONG_PERIOD
-                    df = self.calculate_sma(df, config.SMA_LONG_PERIOD)
-                    self.show_sma_line(config.SMA_LONG_PERIOD, config.SMA_LONG_COLOR, "sma_long_line", df)
-                    # Run the signal handler to check for buy/sell signals
-                    # We pass df which should contain the necessary columns
-                    # to compute the signals
-                    signal = signals_handler.BuyOrSellBasedOnSignals(df)
-                    if signal :
-                        self.chart.marker(
-                            text = f"{signal.capitalize()} Signal",
-                            position = 'below',
-                            shape = 'arrow_up' if signal == 'buy' else 'arrow_down',
-                            color = "#33de36" if signal == 'buy' else "#ea0b1e"
-                        )
+                logger.debug(f"Received data from the queue: {data}")
+
+                # Create markers BUY or SELL bases on some calculations
+                signal = signals_handler.BuyOrSellBasedOnSignals(bars)
+                print(signal)
+
+            if not bars:
+                logger.info("No new data in queue.")
+                return
+    
+            # Convert to DataFrame
+            df = pd.DataFrame(bars)
+            
+            # Update chart
+            self.chart.set(df) # This uses columns: date/time, open, high, low, close, volume
+            self.show_sma_line(config.SMA_SHORT_PERIOD, config.SMA_SHORT_COLOR, "sma_short_line", df)
+            self.show_sma_line(config.SMA_LONG_PERIOD, config.SMA_LONG_COLOR, "sma_long_line", df)
+
         except queue.Empty:
-            logger.info("No new data in queue.")
-        self.chart.spinner(False)
+            logger.warning("Queue was unexpectedly empty.")
+    
+        finally:
+            self.chart.spinner(False)
 
     ###########################################################################
-    def request_realtime_data(self, symbol: str, timeframe: str):
-        """Requests real-time data for a specific symbol and timeframe.
-        Status:
-            IN PROGRESS
+    def create_contract(self, symbol: str , sec_type: str, exchange: str, currency: str):
 
-        Args:
-            symbol (str): The stock symbol to request data for.
-            timeframe (str): The timeframe for the real-time data.
-        """
-        logger.info(f"Requesting real-time data for {symbol} with timeframe {timeframe}")
-        self.chart.spinner(False)
-        # Create a contract object for the stock symbol
+        """Create a contract object"""
         contract = Contract()
         contract.symbol = symbol
-        contract.secType = 'STK'
-        contract.exchange = 'SMART'
-        contract.currency = config.DEFAULT_CURRENCY
-
-        # Request real-time data from IB API
-        bar = self.client.reqRealTimeBars(
-            1,         # requestId: any unique integer ID for tracking
-            contract,  # The contract object (symbol, type, etc.)
-            5,         # barSize: 5 seconds. Should be configurable.
-            'TRADES',  # whatToShow: 'TRADES' for trade data
-            True,      # useRTH: True to only show data from regular trading hours
-            []         # chartOptions: leave empty unless using special features
-        )
-        time.sleep(1)
-        self.chart.watermark(symbol)
-        logger.info(f"Real-time data request sent for {symbol} with timeframe {timeframe}")
+        contract.secType = sec_type
+        contract.exchange = exchange
+        contract.currency = currency
+        return contract
 
     ###########################################################################
     def request_data(self, symbol: str, timeframe: str):
         """Requests historical data from Interactive Brokers.
 
         Args:
+            reqId (int): unique integer ID.
             symbol (str): The stock symbol.
-            timeframe (str): The timeframe for historical data (e.g., '1 mins', '5 mins').
+            timeframe (str): The timeframe for historical data
+                             (e.g., '1 mins', '5 mins').
         """
+
         logger.info(f"Requesting bar data for {symbol} {timeframe}")
         self.chart.spinner(True)
+
         # Create a contract object for the stock symbol
-        contract = Contract()
-        contract.symbol = symbol # Stock ticker symbol
-        contract.secType = 'STK' # Security type 'STK' = stock. Other types include 'OPT', 'FUT', 'CASH', etc
-        contract.exchange = 'SMART' # Exchange to use for the contract
-        contract.currency = config.DEFAULT_CURRENCY # Currency for the contract, e.g., 'USD'
-        what_to_show = 'TRADES' # Data type to request, 'TRADES' for trade data
-                                # 'MIDPOINT' for midpoint data, 'BID', 'ASK' for bid and ask data, etc
+        contract = self.create_contract(symbol, 
+                                        config.SEC_TYPE,
+                                        config.CONTRACT_EXCHANGE, 
+                                        config.DEFAULT_CURRENCY)
 
         # Request historical data from IB API
         # The request will return data in the format specified by the 'barSizeSetting'
         self.client.reqHistoricalData(
-            2,                  # requestId: any unique integer ID for tracking
-            contract,           # The contract object (symbol, type, etc.)
+            reqId = self.client.get_next_req_id(), # requestId: any unique integer ID for tracking
+            contract = contract,  # The contract object (symbol, type, etc.)
             endDateTime = '',     # Empty = current time
-            durationStr = config.DEFAULT_HISTORICAL_DURATION,  # e.g., '1 D', '1 W', '1 M'
-            barSizeSetting = timeframe,  # e.g., '1 min', '5 mins', '1 day'
-            whatToShow = what_to_show,   # Type of data ('TRADES')
-            useRTH = True,        # Only show data from regular trading hours (RTH)
+            durationStr = config.DEFAULT_HISTORICAL_DURATION,
+            barSizeSetting = timeframe,
+            whatToShow = config.WHAT_TO_SHOW,
+            useRTH = config.USE_RTH,
             formatDate = 2,       # Format: 1=string (YYYYMMDD), 2=UNIX timestamp
             keepUpToDate = False, # Static snapshot; True = streaming update
             chartOptions = []     # Leave empty unless using special features
