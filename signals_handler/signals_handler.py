@@ -1,8 +1,7 @@
-import sys
 import pandas as pd
 import config
+from typing import Dict, List 
 from logger import logger
-from typing import Dict, List  
 
 ###############################################################################
 def sma_crossover_signal(bars: List[Dict]) -> str | None:
@@ -27,10 +26,10 @@ def sma_crossover_signal(bars: List[Dict]) -> str | None:
                     if col in df.columns and df[col].dropna().empty]
     if missing_columns or empty_columns:
         if missing_columns:
-            logger.info(f"Missing columns: {missing_columns}")
+            logger.debug(f"Missing columns: {missing_columns}")
             return None
         if empty_columns:
-            logger.info(f"Columns with only NaN/None: {empty_columns}")
+            logger.debug(f"Columns with only NaN/None: {empty_columns}")
             return None
 
     # This ensures that only rows where both SMA columns have valid values are kept.
@@ -65,7 +64,19 @@ def volumes_signal(df: pd.DataFrame) -> str | None:
 signals_functions = [sma_crossover_signal]
 
 ###############################################################################
-def BuyOrSellBasedOnSignals(df: pd.DataFrame) -> str | None:
+def buy_or_sell_based_on_signals(df: pd.DataFrame) -> str | None:
+    """
+    This functions call all signal_functions passing historical data as 
+    argument. Each Function perfoms a differen data analisys based on which
+    a BUY or a SELL signal signal is produced and added to the list of 
+    signals.
+
+    Args:
+        df: (pdanda DataFrame): The daframe with historical data.
+
+    Returns:
+        Returns, base of the magiority the BUY or SELL signal
+    """
     signals = [func(df) for func in signals_functions]
     # For now return the only signal we have
     return signals[len(signals_functions)-1]

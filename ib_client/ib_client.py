@@ -25,28 +25,27 @@ class IBClient(EWrapper, EClient):
     """
 
     ###########################################################################
-    def __init__(self, host: str, port: int, client_id: int):
-        """Initializes IBClient and starts the connection thread.
-
-        Args:
-            host (str): The host address for Interactive Brokers.
-            port (int): The port number for connection.
-            client_id (int): Unique ID for the client session.
-        """
+    def __init__(self):
+        """Initializes IBClient"""
         EClient.__init__(self, self)
-        self.host = host
-        self.port = port
-        self.client_id = client_id
+
         self.current_req_id = 0
         self.connected = False
         self.chart_handler = None  # Placeholder for ChartHandler instance
         self.order_id = None  # Placeholder for order IDs
-    
-    ###########################################################################
-    def connect(self):
-        try:
-            super().connect(self.host, self.port, self.client_id)
+        self.portfolio_manager = None
 
+    ###########################################################################
+    def connect(self, host: str, port: int, clientId: int) -> bool:
+        """Starts the connection thread.
+            Args:
+        host (str): The host address for Interactive Brokers.
+        port (int): The port number for connection.
+        client_id (int): Unique ID for the client session.
+        """
+        try:
+            super().connect(host, port, clientId)
+            
             # Start the socket in a thread
             api_thread = Thread(target=self.run, daemon=False)
             api_thread.start()
@@ -55,11 +54,11 @@ class IBClient(EWrapper, EClient):
             time.sleep(1)
 
             if self.isConnected():
-                logger.info(f"Connected to IB Gateway at {self.host}:{self.port} with client ID {self.client_id}")
+                logger.info(f"Connected to IB Gateway at {self.host}:{self.port} with client ID {clientId}")
                 self.connected = True
                 return True
             else:
-                logger.error(f"Failed to connect to IB Gateway at {self.host}:{self.port} with client ID {self.client_id}")
+                logger.error(f"Failed to connect to IB Gateway at {self.host}:{self.port} with client ID {clientId}")
                 self.connected = False
                 return False
         except Exception as e:
@@ -68,10 +67,10 @@ class IBClient(EWrapper, EClient):
         
     ###########################################################################    
     def get_next_req_id(self):
-        req_id = self.current_req_id
+        """Return the next calculated request id"""
         self.current_req_id += 1
         return self.current_req_id
-    
+  
     ###########################################################################    
     def set_chart_handler(self, chart_handler):
         """Assigns ChartHandler instance after creation."""
@@ -100,7 +99,7 @@ class IBClient(EWrapper, EClient):
             logger.error(f"Error. Id: {reqId}, Code: {errorCode}, Msg: {errorString}, Time: {errorTime}")
 
     ###########################################################################
-    def historicalData(self, req_id: int, bar: BarData):
+    def historicalData(self, reqId: int, bar: BarData):
         """Processes historical data received from IB. 
         This method is called for each bar of historical data.
 
@@ -122,8 +121,7 @@ class IBClient(EWrapper, EClient):
         }
         # Add the data to the shared queue for processing)
         data_queue.put(data)
-        logger.debug(f"Received historical data for request ID {req_id}: {data}")
-
+        logger.debug(f"Received historical data for request ID {reqId}: {data}")
 
     ###########################################################################
     def historicalDataEnd(self, reqId: int, start: str, end: str):
@@ -142,68 +140,6 @@ class IBClient(EWrapper, EClient):
         logger.debug(f"Historical data retrieval completed for request ID {reqId} from {start} to {end}")
         # Update the chart with the new data
         self.chart_handler.update_chart()
-
-    ###########################################################################
-    def realtimeBar(self, reqId, time, open_, high, low, close, volume, wap, count):
-        return super().realtimeBar(reqId, time, open_, high, low, close, volume, wap, count)
-        """Processes real-time bar data received from IB.
-        This method is called for each real-time bar of data. 
-        Converts IB bar data into a dictionary and adds it to the data queue.
-        Args:
-            reqId (int): The request ID for real-time data.
-            time (int): The timestamp of the bar.
-            open_ (float): Opening price of the bar.
-            high (float): Highest price of the bar.
-            low (float): Lowest price of the bar.
-            close (float): Closing price of the bar.
-            volume (int): Volume of the bar.
-            wap (float): Weighted average price of the bar.
-            count (int): Number of trades in the bar.
-        """
-        t = datetime.datetime.fromtimestamp(int(time))
-        data = {
-            'date': t,
-            'open': open_,
-            'high': high,
-            'low': low,
-            'close': close,
-            'volume': int(volume)
-        }
-        # Add the data to the shared queue for processing
-        data_queue.put(data)
-        logger.debug(f"Received real-time bar data for request ID {reqId}: {data}")
-        
-    # ###########################################################################
-    # JUST FOR TESTING PURPOSES
-    # def simulate_live_data(self, symbol, delay=1):
-    #     """Simulates live data feed from a CSV file instead of from IBRK.
-    #     Reads data from a CSV file and calls the provided callback function
-    #     for each row, simulating a live data feed with a specified delay.
-    #     Args:
-    #         file_path (str): Path to the CSV file containing historical data.
-    #         callback (function): Function to call with each data point.
-    #         delay (int, optional): Delay in seconds between data points. Defaults to 1.
-    #     """
-    #     file_path = f"data/{symbol}.csv"  # Assuming data files are stored in a 'data' directory
-    #     if not os.path.exists(file_path):
-    #         logger.error(f"Data file {file_path} does not exist.")
-    #         return
-    
-    #     with open(file_path, newline='') as csvfile:
-    #         reader = csv.DictReader(csvfile)
-    #         for row in reader:
-    #             # Convert row fields appropriately
-    #             data_point = {
-    #                 'date': datetime.datetime.strptime(row['date'], '%Y-%m-%d %H:%M:%S'),
-    #                 'open': float(row['open']),
-    #                 'high': float(row['high']),
-    #                 'low': float(row['low']),
-    #                 'close': float(row['close']),
-    #                 'volume': int(row['volume'])
-    #             }
-    #             self.historicalData(data_point)  # Handle data as if it's coming from IB
-    #             time.sleep(delay) # Simulate delay between incoming ticks
-
 
     ###########################################################################
     def nextValidId(self, orderId: int):
@@ -238,7 +174,7 @@ class IBClient(EWrapper, EClient):
             # Update portfolio
             quantity_change = quantity if action == "BUY" else -quantity
             self.portfolio_manager.update_position(contract, quantity_change)
-# ...
+
     ###########################################################################
     def orderStatus(self, orderId: int, status: str, filled: float, remaining: float,
                     avgFillPrice: float, permId: int, parentId: int,

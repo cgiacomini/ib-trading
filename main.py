@@ -1,4 +1,5 @@
 import time
+import sys
 import config
 from config import DEFAULT_HOST, TRADING_PORT, DEFAULT_CLIENT_ID
 from chart_handler.chart import ChartHandler
@@ -13,9 +14,9 @@ if __name__ == "__main__":
     logger.info(f"PYWEBVIEW_GUI: {config.PYWEBVIEW_GUI}")
 
     chart_handler = ChartHandler()
-    client = IBClient(config.DEFAULT_HOST, config.TRADING_PORT, config.DEFAULT_CLIENT_ID)
-    if not client.connect() : 
-        exit()
+    client = IBClient()
+    if not client.connect(config.DEFAULT_HOST, config.TRADING_PORT, config.DEFAULT_CLIENT_ID):
+        sys.exit()
     
     portfolio_manager = PortfolioManager()
     portfolio_manager.set_client(client)
@@ -26,6 +27,6 @@ if __name__ == "__main__":
 
     # Request initial data for a default symbol and timeframe
     # Requesting historical data for default symbo
-    chart_handler.request_data(config.INITIAL_SYMBOL, 
-                               config.DEFAULT_TIMEFRAME)
+    chart_handler.request_historical_data(config.INITIAL_SYMBOL, 
+                                          config.DEFAULT_TIMEFRAME)
     chart_handler.show_chart()

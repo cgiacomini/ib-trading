@@ -1,17 +1,13 @@
-import sys
-import time
-import csv
-import datetime
+from typing import Dict, List
 import queue
+import time
+
+from ibapi.contract import Contract
+from ibapi.order import Order 
+from lightweight_charts import Chart  # Assuming lightweight_charts is used
 import pandas as pd
 from signals_handler import signals_handler
 from shared.queue_manager import data_queue  # Import shared queue
-from ibapi.contract import Contract
-from ibapi.order import Order 
-from ibapi.client import ScannerSubscription
-from ibapi.tag_value import TagValue
-from lightweight_charts import Chart  # Assuming lightweight_charts is used
-from typing import Dict, List
 
 # Import default configuration
 import config
@@ -87,9 +83,9 @@ class ChartHandler:
         """
         symbol = chart.topbar['symbol'].value
         timeframe = chart.topbar['timeframe'].value
-        logger.info(f"Selected timeframe: {timeframe} for {symbol}")
+        logger.info("Selected timeframe: %s for %s", timeframe, symbol)
         # Request new data for the selected symbol and timeframe
-        self.request_data(symbol, timeframe)
+        self.request_historical_data(symbol, timeframe)
 
     ###########################################################################
     def on_search(self, chart, searched_string):
@@ -99,11 +95,11 @@ class ChartHandler:
             chart (Chart): The chart instance where the search is performed.
             searched_string (str): The symbol string that was searched.
         """
-        logger.info(f"Searching for symbol: {searched_string}")
+        logger.info("Searching for symbol: %s", searched_string)
         # Request new data for the searched symbol and current timeframe
-        self.request_data(searched_string, chart.topbar['timeframe'].value)
+        self.request_historical_data(searched_string, chart.topbar['timeframe'].value)
         chart.topbar['symbol'].set(searched_string)
-
+        
     ##########################################################################
     def on_row_click(self, row):
         self.chart.topbar['symbol'].set(row['symbol'])
@@ -111,7 +107,6 @@ class ChartHandler:
         row['PL'] = round(row['PL']+1, 2)
         row.background_color('PL', 'green' if row['PL'] > 0 else 'red')
         self.table.footer[1] = row['symbol']
-
     ###########################################################################
     def update_data_with_sma(self, period: int, bars: List[Dict], data: Dict) -> Dict:
         """
@@ -130,23 +125,22 @@ class ChartHandler:
         temp_bars = bars + [data]
         temp_df   = pd.DataFrame(temp_bars)
         if len(temp_df) >= period:
-           sma_value = temp_df['close'].rolling(window=period).mean().iloc[-1]
-           data[f'SMA_{period}'] = round(sma_value, 2)
+            sma_value = temp_df['close'].rolling(window=period).mean().iloc[-1]
+            data[f'SMA_{period}'] = round(sma_value, 2)
         else:
-           data[f'SMA_{period}'] = None
+            data[f'SMA_{period}'] = None
 
         return data
 
     ###########################################################################
-    def show_sma_line(self, period, color, line_attr_name, df: pd.DataFrame):
-        """Displays the Simple Moving Average (SMA) on the chart."""
-        
+    def show_sma_line(self, period: str, color: str, line_attr_name, df: pd.DataFrame):
+        """Displays the Simple Moving Average (SMA) on the chart."""        
         line_attr = getattr(self, line_attr_name, None)
-        logger.debug(f"Showing SMA for period: {period}")
+        logger.debug("Showing SMA for period: %s", period)
         sma_column = f'SMA_{period}'
 
         if sma_column not in df.columns:
-            logger.warning(f"Missing column {sma_column} in DataFrame.")
+            logger.warning("Missing %s column in DataFrame", sma_column)
             return
 
         sma_df = df[['date', sma_column]].dropna()
@@ -154,7 +148,7 @@ class ChartHandler:
             if line_attr:
                 line_attr.set(sma_df)
             else:
-                logger.info(f"Creating new SMA line for {period}")
+                logger.info("Creating new SMA line for SMA_%s period", period)
                 new_line = self.chart.create_line(
                     name=f"SMA_{period}",
                     color=color,
@@ -163,7 +157,7 @@ class ChartHandler:
                 new_line.set(sma_df)
                 setattr(self, line_attr_name, new_line)
         else:
-            logger.warning(f"No data available to display SMA_{period}.")
+            logger.warning("No data available to display SMA_%s", period)
             return
 
     ###########################################################################
@@ -177,26 +171,26 @@ class ChartHandler:
 
         try:
             logger.info("Updating chart with new data from the queue.")
-    
+
             # Drain the queue
             while not data_queue.empty():
                 data = data_queue.get_nowait()
                 self.update_data_with_sma(config.SMA_SHORT_PERIOD, bars, data)
                 self.update_data_with_sma(config.SMA_LONG_PERIOD, bars, data)
                 bars.append(data)
-                logger.debug(f"Received data from the queue: {data}")
+                logger.debug("Received data from the queue: %s", data)
 
                 # Create markers BUY or SELL bases on some calculations
-                signal = signals_handler.BuyOrSellBasedOnSignals(bars)
+                signal = signals_handler.buy_or_sell_based_on_signals(bars)
                 #print(signal)
 
             if not bars:
                 logger.info("No new data in queue.")
                 return
-    
+
             # Convert to DataFrame
             df = pd.DataFrame(bars)
-            
+
             # Update chart
             self.chart.set(df) # This uses columns: date/time, open, high, low, close, volume
             self.show_sma_line(config.SMA_SHORT_PERIOD, config.SMA_SHORT_COLOR, "sma_short_line", df)
@@ -204,7 +198,7 @@ class ChartHandler:
 
         except queue.Empty:
             logger.warning("Queue was unexpectedly empty.")
-    
+
         finally:
             self.chart.spinner(False)
 
@@ -220,42 +214,49 @@ class ChartHandler:
         return contract
 
     ###########################################################################
-    def request_data(self, symbol: str, timeframe: str):
+    def request_historical_data(self, symbol: str, timeframe: str):
         """Requests historical data from Interactive Brokers.
 
         Args:
-            reqId (int): unique integer ID.
             symbol (str): The stock symbol.
             timeframe (str): The timeframe for historical data
                              (e.g., '1 mins', '5 mins').
         """
+        if not self.client.connected:
+            logger.error("Not connected to IBKR")
+            return None
+        try:         
+            logger.info("Requesting bar data for %s %s", symbol, timeframe)
+            self.chart.spinner(True)
 
-        logger.info(f"Requesting bar data for {symbol} {timeframe}")
-        self.chart.spinner(True)
+            # Create a contract object for the stock symbol
+            contract = self.create_contract(symbol, 
+                                            config.SEC_TYPE,
+                                            config.CONTRACT_EXCHANGE,
+                                            config.DEFAULT_CURRENCY)
 
-        # Create a contract object for the stock symbol
-        contract = self.create_contract(symbol, 
-                                        config.SEC_TYPE,
-                                        config.CONTRACT_EXCHANGE, 
-                                        config.DEFAULT_CURRENCY)
+            # Request historical data from IB API
+            # The request will return data in the format specified by the 'barSizeSetting'
+            req_id = self.client.get_next_req_id() # Any unique integer ID for tracking
+            self.client.reqHistoricalData(
+                reqId = req_id,
+                contract = contract,
+                endDateTime = '',  # Empty = current time
+                durationStr = config.DEFAULT_HISTORICAL_DURATION,
+                barSizeSetting = timeframe,
+                whatToShow = config.WHAT_TO_SHOW,
+                useRTH = config.USE_RTH,
+                formatDate = 2,       # Format: 1=string (YYYYMMDD), 2=UNIX timestamp
+                keepUpToDate = False, # Static snapshot; True = streaming update
+                chartOptions = []     # Leave empty unless using special features
+            )
+            time.sleep(1)
+            self.chart.watermark(symbol)
+            logger.info("Requesting data received")
 
-        # Request historical data from IB API
-        # The request will return data in the format specified by the 'barSizeSetting'
-        self.client.reqHistoricalData(
-            reqId = self.client.get_next_req_id(), # requestId: any unique integer ID for tracking
-            contract = contract,  # The contract object (symbol, type, etc.)
-            endDateTime = '',     # Empty = current time
-            durationStr = config.DEFAULT_HISTORICAL_DURATION,
-            barSizeSetting = timeframe,
-            whatToShow = config.WHAT_TO_SHOW,
-            useRTH = config.USE_RTH,
-            formatDate = 2,       # Format: 1=string (YYYYMMDD), 2=UNIX timestamp
-            keepUpToDate = False, # Static snapshot; True = streaming update
-            chartOptions = []     # Leave empty unless using special features
-        )
-        time.sleep(1)
-        self.chart.watermark(symbol)
-        logger.info(f"Requesting data received")
+        except Exception as e:
+            logger.warning("Error retrieving historical data: %s", e)
+            return None
 
     ###########################################################################
     def show_chart(self):
@@ -288,7 +289,7 @@ class ChartHandler:
         time.sleep(2)
 
         if self.client.order_id:
-            logger.info(f"Placing {order_action} order for {order_quantity} shares of {symbol}")
+            logger.info("Order %s for %d shares of %s", order_action, order_quantity, symbol)
             order = Order()
             order.orderType = "MKT"
             order.totalQuantity = order_quantity
@@ -297,4 +298,3 @@ class ChartHandler:
             self.client.placeOrder(self.client.order_id, contract, order)
         else:
             logger.error("Order ID not received from IB API. Cannot place order.")
-

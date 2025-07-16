@@ -17,8 +17,8 @@ if LIVE_TRADING:
 
 # Other constants
 # Default timeframe for chart
-DEFAULT_TIMEFRAME = "1 min" # Default timeframe for chart
-DEFAULT_TIMEFRAME_OPTIONS = ('1 min', '5 mins', '15 mins', '1 hour')
+DEFAULT_TIMEFRAME = "30 secs" # Default timeframe for chart
+DEFAULT_TIMEFRAME_OPTIONS = ('30 secs', '1 min', '5 mins', '15 mins', '1 hour')
 # Timeout for queue operations
 DATA_QUEUE_TIMEOUT = 5 
 # Default duration for historical data requests
