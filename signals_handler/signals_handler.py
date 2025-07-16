@@ -47,7 +47,7 @@ def sma_crossover_signal(bars: List[Dict]) -> str | None:
     p_sma_long = sma_df.iloc[-2][f'SMA_{config.SMA_LONG_PERIOD}']
     c_sma_long = sma_df.iloc[-1][f'SMA_{config.SMA_LONG_PERIOD}']
 
-    print (f'{p_sma_short} {c_sma_short} {p_sma_long} {c_sma_long}')
+    #print (f'{p_sma_short} {c_sma_short} {p_sma_long} {c_sma_long}')
 
     if pd.notna(p_sma_short) and pd.notna(c_sma_short) and pd.notna(p_sma_long) and pd.notna(c_sma_long):
         if c_sma_short > c_sma_long and p_sma_short <= p_sma_long:

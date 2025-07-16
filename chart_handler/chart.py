@@ -188,7 +188,7 @@ class ChartHandler:
 
                 # Create markers BUY or SELL bases on some calculations
                 signal = signals_handler.BuyOrSellBasedOnSignals(bars)
-                print(signal)
+                #print(signal)
 
             if not bars:
                 logger.info("No new data in queue.")
