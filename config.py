@@ -1,45 +1,29 @@
+import configparser
 import os
 from dotenv import load_dotenv
-
-# Load environment variables from .env
 load_dotenv()
 
-# Retrieve environment variables
-PYWEBVIEW_GUI = os.getenv("PYWEBVIEW_GUI","qt")
-DEFAULT_HOST = os.getenv("DEFAULT_HOST", "127.0.0.1")
-TRADING_PORT = int(os.getenv("TRADING_PORT", 7497))
-LIVE_TRADING_PORT = int(os.getenv("LIVE_TRADING_PORT", 7497))
-DEFAULT_CLIENT_ID = int(os.getenv("DEFAULT_CLIENT_ID", 0))
-INITIAL_SYMBOL = os.getenv("INITIAL_SYMBOL", "AAPL")
-LIVE_TRADING = False
-if LIVE_TRADING:
-    TRADING_PORT = LIVE_TRADING_PORT
+config_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'eclient.cfg')
+cfg = configparser.ConfigParser()
+cfg.read(config_path)
 
-# Other constants
-# Default timeframe for chart
-DEFAULT_TIMEFRAME = "30 secs" # Default timeframe for chart
-DEFAULT_TIMEFRAME_OPTIONS = ('30 secs', '1 min', '5 mins', '15 mins', '1 hour')
-# Timeout for queue operations
-DATA_QUEUE_TIMEOUT = 5 
-# Default duration for historical data requests
-DEFAULT_HISTORICAL_DURATION = os.getenv("DEFAULT_HISTORICAL_DURATION", "30 D")
-# Exchange to use for the contract (e.g. SMART).
-CONTRACT_EXCHANGE = 'SMART'
-# Currency for the contract, e.g., 'USD'
-DEFAULT_CURRENCY = os.getenv("DEFAULT_CURRENCY", "USD")
-# Default Security type 'STK' = stock. Other types include 'OPT', 'FUT', 'CASH', etc
-SEC_TYPE = 'STK'
-# USE Regular Trading Hours)
-USE_RTH = True
-# Default Data type to request 'TRADES' for trade data 'MIDPOINT' for midpoint data, 'BID', 'ASK' for bid and ask data, etc
-WHAT_TO_SHOW = 'TRADES'
-# Default window period for Simple Moving Average (SMA)
-SMA_SHORT_PERIOD = 20
-# Default window period for Long Simple Moving Average (SMA)
-SMA_LONG_PERIOD = 50
-# Color for short SMA line
-SMA_SHORT_COLOR = "blue"
-# Color for long SMA line
-# Default market scanner code
-SMA_LONG_COLOR = "red"
-SCAN_CODE = "Top Percent Gainers"
+
+MOCK_MODE = cfg.getboolean('DEFAULT', 'MOCK_MODE', fallback=True)
+PYWEBVIEW_GUI = cfg.get('DEFAULT', 'PYWEBVIEW_GUI', fallback='qt')
+DEFAULT_HOST = cfg.get('DEFAULT', 'DEFAULT_HOST', fallback='127.0.0.1')
+TRADING_PORT = cfg.getint('DEFAULT', 'TRADING_PORT', fallback=7497)
+DEFAULT_CLIENT_ID = cfg.getint('DEFAULT', 'DEFAULT_CLIENT_ID', fallback=0)
+INITIAL_SYMBOL = cfg.get('DEFAULT', 'INITIAL_SYMBOL', fallback='AAPL')
+DEFAULT_TIMEFRAME = cfg.get('DEFAULT', 'DEFAULT_TIMEFRAME', fallback='1 hour')
+DEFAULT_TIMEFRAME_OPTIONS = tuple(opt.strip() for opt in cfg.get('DEFAULT', 'DEFAULT_TIMEFRAME_OPTIONS', fallback='1 min,5 min,15 min,1 hour').split(','))
+DEFAULT_HISTORICAL_DURATION = cfg.get('DEFAULT', 'DEFAULT_HISTORICAL_DURATION', fallback='30 D')
+CONTRACT_EXCHANGE = cfg.get('DEFAULT', 'CONTRACT_EXCHANGE', fallback='SMART')
+DEFAULT_CURRENCY = cfg.get('DEFAULT', 'DEFAULT_CURRENCY', fallback='USD')
+SEC_TYPE = cfg.get('DEFAULT', 'SEC_TYPE', fallback='STK')
+USE_RTH = cfg.getint('DEFAULT', 'USE_RTH', fallback=1)
+WHAT_TO_SHOW = cfg.get('DEFAULT', 'WHAT_TO_SHOW', fallback='TRADES')
+SMA_SHORT_PERIOD = cfg.getint('DEFAULT', 'SMA_SHORT_PERIOD', fallback=20)
+SMA_LONG_PERIOD = cfg.getint('DEFAULT', 'SMA_LONG_PERIOD', fallback=50)
+SMA_SHORT_COLOR = cfg.get('DEFAULT', 'SMA_SHORT_COLOR', fallback='blue')
+SMA_LONG_COLOR = cfg.get('DEFAULT', 'SMA_LONG_COLOR', fallback='red')
+SCAN_CODE = cfg.get('DEFAULT', 'SCAN_CODE', fallback='Top Percent Gainers')

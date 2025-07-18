@@ -1,9 +1,10 @@
+""" Chart Handler Module"""
 from typing import Dict, List
 import queue
 import time
 
 from ibapi.contract import Contract
-from ibapi.order import Order 
+from ibapi.order import Order
 from lightweight_charts import Chart  # Assuming lightweight_charts is used
 import pandas as pd
 from signals_handler import signals_handler
@@ -29,9 +30,9 @@ class ChartHandler:
         Sets up the chart with a toolbox, legend, and top bar for symbol and
         timeframe selection.
         """
-        self.chart = Chart(toolbox=True, 
-                           width=1000, 
-                           inner_width=0.7, 
+        self.chart = Chart(toolbox=True,
+                           width=1000,
+                           inner_width=0.7,
                            inner_height=1)
         # Adds a legend to the chart
         self.chart.legend(True)
@@ -182,8 +183,7 @@ class ChartHandler:
                 logger.debug("Received data from the queue: %s", data)
 
                 # Create markers BUY or SELL bases on some calculations
-                signal = signals_handler.buy_or_sell_based_on_signals(bars)
-                #print(signal)
+                signals_handler.buy_or_sell_based_on_signals(bars)
 
             if not bars:
                 logger.info("No new data in queue.")
@@ -270,7 +270,7 @@ class ChartHandler:
         self.chart.show(block=True)
 
     ###########################################################################
-    def take_screenshot(self, key):
+    def take_screenshot(self):
         """Handles the screenshot button."""
         img = self.chart.screenshot()
         t = time.time()
@@ -279,16 +279,16 @@ class ChartHandler:
         logger.info("Screenshot taken and saved as screenshot-%s.png", t)
 
     ###########################################################################
-    def save_chart_cvs(self, key):
+    def save_chart_cvs(self):
         """Handles the save button to save chart data to a CSV file."""
         symbol = self.chart.topbar['symbol'].value
         timeframe = self.chart.topbar['timeframe'].value
-        filename = f"{symbol}_{timeframe}.csv"
+        filename = f"{symbol}_{timeframe.replace(' ','_')}.csv"
         try:
-            df = self.chart.data
+            df = self.chart.candle_data
             df.to_csv(filename, index=False)
             logger.info("Chart data saved to %s", filename)
-        except Exception as e:
+        except (IOError, AttributeError) as e:
             logger.error("Error saving chart data: %s", e)
 
     ###########################################################################

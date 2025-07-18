@@ -1,3 +1,4 @@
+"""IBClient Module"""
 import datetime
 import time
 from threading import Thread
@@ -6,7 +7,6 @@ from ibapi.wrapper import EWrapper
 from ibapi.common import BarData
 from shared.queue_manager import data_queue  # Importing shared queue
 from logger import logger
-from portfolio.portfolio_manager import PortfolioManager
 
 ###############################################################################
 class IBClient(EWrapper, EClient):
@@ -49,7 +49,7 @@ class IBClient(EWrapper, EClient):
             time.sleep(1)
 
             if self.isConnected():
-                logger.info("Connected to IB Gateway at %s:%d with client ID %d", 
+                logger.info("Connected to IB Gateway at %s:%d with client ID %d",
                             self.host, self.port, clientId)
                 self.connected = True
                 return True
@@ -60,7 +60,7 @@ class IBClient(EWrapper, EClient):
         except Exception as e:
             print(f"Connection error: {e}")
             return False
-        
+
     ###########################################################################
 
     def get_next_req_id(self):
@@ -74,14 +74,8 @@ class IBClient(EWrapper, EClient):
         self.chart_handler = chart_handler
 
     ###########################################################################
-    def set_portfolio_manager(self, portfolio_data_file: str):
-        """Assigns PositionManager instance for managing trading positions."""
-        self.portfolio_manager = PortfolioManager(portfolio_data_file)
-        logger.info("Portfolio Manager set in IBClient.")
-
-    ###########################################################################
-    def error(self, reqId: int, errorCode: int, errorTime: str, 
-               errorString: str, misc: str = ""):
+    def error(self, reqId: int, errorTime: int, errorCode: int,
+               errorString: str, advancedOrderRejectJson: str = ""):
         """Handles error messages from Interactive Brokers. C
 
         Args:
@@ -94,7 +88,7 @@ class IBClient(EWrapper, EClient):
         if errorCode in [2104, 2106, 2158]:  # Common IB status messages
             logger.warning("IB Status Message: %s", errorString)
         else:
-            logger.error("IB Error %d: %s (Request ID: %d, Time: %s)", 
+            logger.error("IB Error %d: %s (Request ID: %d, Time: %s)",
                          errorCode, errorString, reqId, errorTime)
 
     ###########################################################################
@@ -163,8 +157,9 @@ class IBClient(EWrapper, EClient):
             clientId (int): Client ID associated with the order.
             whyHeld (str): Reason why the order is held, if applicable.
         """
-        super().orderStatus(orderId, status, filled, remaining, avgFillPrice, 
-                            permId, parentId, lastFillPrice, clientId, whyHeld, 
+        super().orderStatus(orderId, status, filled, remaining, avgFillPrice,
+                            permId, parentId, lastFillPrice, clientId, whyHeld,
                             mktCapPrice)
-        logger.info("Order Status Update: Order ID %d, Status: %s, Filled: %.2f, Remaining: %.2f, Avg Fill Price: %.2f",
+        logger.info("Order Status Update: Order ID %d, Status: %s, Filled: %.2f,\
+                     Remaining: %.2f, Avg Fill Price: %.2f",
                     orderId, status, filled, remaining, avgFillPrice)
