@@ -1,14 +1,9 @@
-import datetime, os
-import time, csv
-import queue
+import datetime
+import time
 from threading import Thread
 from ibapi.client import EClient
 from ibapi.wrapper import EWrapper
-from ibapi.contract import Contract
-from ibapi.order import Order
-from ibapi.scanner import ScannerSubscription
 from ibapi.common import BarData
-from ibapi.tag_value import TagValue
 from shared.queue_manager import data_queue  # Importing shared queue
 from logger import logger
 from portfolio.portfolio_manager import PortfolioManager
@@ -45,7 +40,7 @@ class IBClient(EWrapper, EClient):
         """
         try:
             super().connect(host, port, clientId)
-            
+
             # Start the socket in a thread
             api_thread = Thread(target=self.run, daemon=False)
             api_thread.start()
@@ -54,24 +49,26 @@ class IBClient(EWrapper, EClient):
             time.sleep(1)
 
             if self.isConnected():
-                logger.info(f"Connected to IB Gateway at {self.host}:{self.port} with client ID {clientId}")
+                logger.info("Connected to IB Gateway at %s:%d with client ID %d", 
+                            self.host, self.port, clientId)
                 self.connected = True
                 return True
             else:
-                logger.error(f"Failed to connect to IB Gateway at {self.host}:{self.port} with client ID {clientId}")
+                logger.error("Connection failed. Please check your IB Gateway settings.")
                 self.connected = False
                 return False
         except Exception as e:
             print(f"Connection error: {e}")
             return False
         
-    ###########################################################################    
+    ###########################################################################
+
     def get_next_req_id(self):
         """Return the next calculated request id"""
         self.current_req_id += 1
         return self.current_req_id
-  
-    ###########################################################################    
+
+    ###########################################################################
     def set_chart_handler(self, chart_handler):
         """Assigns ChartHandler instance after creation."""
         self.chart_handler = chart_handler
@@ -83,7 +80,8 @@ class IBClient(EWrapper, EClient):
         logger.info("Portfolio Manager set in IBClient.")
 
     ###########################################################################
-    def error(self, reqId: int, errorTime: str, errorCode: int, errorString: str, advancedOrderRejectJson=""):
+    def error(self, reqId: int, errorCode: int, errorTime: str, 
+               errorString: str, misc: str = ""):
         """Handles error messages from Interactive Brokers. C
 
         Args:
@@ -94,9 +92,10 @@ class IBClient(EWrapper, EClient):
             misc (str, optional): Additional information. Defaults to "".
         """
         if errorCode in [2104, 2106, 2158]:  # Common IB status messages
-            logger.warning(f"IB Status Message: {errorString}")
+            logger.warning("IB Status Message: %s", errorString)
         else:
-            logger.error(f"Error. Id: {reqId}, Code: {errorCode}, Msg: {errorString}, Time: {errorTime}")
+            logger.error("IB Error %d: %s (Request ID: %d, Time: %s)", 
+                         errorCode, errorString, reqId, errorTime)
 
     ###########################################################################
     def historicalData(self, reqId: int, bar: BarData):
@@ -121,7 +120,7 @@ class IBClient(EWrapper, EClient):
         }
         # Add the data to the shared queue for processing)
         data_queue.put(data)
-        logger.debug(f"Received historical data for request ID {reqId}: {data}")
+        logger.debug("Received historical data for request ID %d: %s", reqId, data)
 
     ###########################################################################
     def historicalDataEnd(self, reqId: int, start: str, end: str):
@@ -136,8 +135,7 @@ class IBClient(EWrapper, EClient):
             end (str): End date of the retrieved data.
         """
         self.chart_handler.chart.spinner(False)
-
-        logger.debug(f"Historical data retrieval completed for request ID {reqId} from {start} to {end}")
+        logger.debug("Updating chart with new data after historical data retrieval.")
         # Update the chart with the new data
         self.chart_handler.update_chart()
 
@@ -146,34 +144,7 @@ class IBClient(EWrapper, EClient):
         """Receives the next valid order ID from IB API."""
         super().nextValidId(orderId)
         self.order_id = orderId
-        logger.debug(f"Next valid order ID: {self.order_id}")
-
-    ###########################################################################
-    def place_order(self, contract: Contract, action: str, quantity: int):
-        """Places an order with IB.
-
-        Args:
-            contract (Contract): The contract object.
-            action (str): Either 'BUY' or 'SELL'.
-            quantity (int): Number of shares to trade.
-        """
-        if not self.order_id:
-            self.reqIds(-1)
-            time.sleep(2)  # Small delay to ensure order ID retrieval
-
-        order = Order()
-        order.action = action
-        order.orderType = "MKT"
-        order.totalQuantity = quantity
-
-        if self.order_id:
-            logger.info(f"Placing {action} order for {quantity} shares of {contract.symbol} with order ID {self.order_id}")
-            self.placeOrder(self.order_id, contract, order)
-        else:
-            logger.info(f"Placed {action} order for {quantity} shares of {contract.symbol} with order ID {self.order_id}")
-            # Update portfolio
-            quantity_change = quantity if action == "BUY" else -quantity
-            self.portfolio_manager.update_position(contract, quantity_change)
+        logger.debug("Next valid order ID: %d", self.order_id)
 
     ###########################################################################
     def orderStatus(self, orderId: int, status: str, filled: float, remaining: float,
@@ -195,5 +166,5 @@ class IBClient(EWrapper, EClient):
         super().orderStatus(orderId, status, filled, remaining, avgFillPrice, 
                             permId, parentId, lastFillPrice, clientId, whyHeld, 
                             mktCapPrice)
-        logger.info(f"Order Status: {orderId}, Status: {status}, Filled: {filled}, Remaining: {remaining}, "
-                    f"Avg Fill Price: {avgFillPrice}, Last Fill Price: {lastFillPrice}")
+        logger.info("Order Status Update: Order ID %d, Status: %s, Filled: %.2f, Remaining: %.2f, Avg Fill Price: %.2f",
+                    orderId, status, filled, remaining, avgFillPrice)

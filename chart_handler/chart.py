@@ -42,8 +42,9 @@ class ChartHandler:
                                    default=config.DEFAULT_TIMEFRAME,
                                    func=self.on_timeframe_selection)
         # Adds a button to take a screenshot of the chart
-        self.chart.topbar.button('screenshot', 'Screenshot', 
-                                 func=self.take_screenshot)
+        self.chart.topbar.button('screenshot', 'Screenshot', func=self.take_screenshot)
+        # Adds a button to save the chart data to a CSV fil
+        self.chart.topbar.button('save', 'Save', func=self.save_chart_cvs)
         # Set up a function to call when searching for symbol
         self.chart.events.search += self.on_search
         # Adds a hotkey to place a buy order
@@ -99,19 +100,18 @@ class ChartHandler:
         # Request new data for the searched symbol and current timeframe
         self.request_historical_data(searched_string, chart.topbar['timeframe'].value)
         chart.topbar['symbol'].set(searched_string)
-        
     ##########################################################################
     def on_row_click(self, row):
         self.chart.topbar['symbol'].set(row['symbol'])
-        self.get_bar_data(row['symbol'], config.DEFAULT_TIMEFRAME)
+        self.request_historical_data(row['symbol'], config.DEFAULT_TIMEFRAME)
         row['PL'] = round(row['PL']+1, 2)
         row.background_color('PL', 'green' if row['PL'] > 0 else 'red')
         self.table.footer[1] = row['symbol']
+
     ###########################################################################
     def update_data_with_sma(self, period: int, bars: List[Dict], data: Dict) -> Dict:
         """
         Update received data bas adding a column for the SMA of the  given period
-
         Args:
             period (int): The period over which to calculate the SMA.
             bars (Lis[Dict]): the current list of received data bars.
@@ -134,7 +134,8 @@ class ChartHandler:
 
     ###########################################################################
     def show_sma_line(self, period: str, color: str, line_attr_name, df: pd.DataFrame):
-        """Displays the Simple Moving Average (SMA) on the chart."""        
+        """Displays the Simple Moving Average (SMA) on the chart."""
+
         line_attr = getattr(self, line_attr_name, None)
         logger.debug("Showing SMA for period: %s", period)
         sma_column = f'SMA_{period}'
@@ -192,9 +193,14 @@ class ChartHandler:
             df = pd.DataFrame(bars)
 
             # Update chart
-            self.chart.set(df) # This uses columns: date/time, open, high, low, close, volume
-            self.show_sma_line(config.SMA_SHORT_PERIOD, config.SMA_SHORT_COLOR, "sma_short_line", df)
-            self.show_sma_line(config.SMA_LONG_PERIOD, config.SMA_LONG_COLOR, "sma_long_line", df)
+            # This uses columns: date/time, open, high, low, close, volume
+            self.chart.set(df)
+            self.show_sma_line(config.SMA_SHORT_PERIOD,
+                               config.SMA_SHORT_COLOR,
+                               "sma_short_line", df)
+            self.show_sma_line(config.SMA_LONG_PERIOD,
+                               config.SMA_LONG_COLOR,
+                               "sma_long_line", df)
 
         except queue.Empty:
             logger.warning("Queue was unexpectedly empty.")
@@ -225,12 +231,12 @@ class ChartHandler:
         if not self.client.connected:
             logger.error("Not connected to IBKR")
             return None
-        try:         
+        try:
             logger.info("Requesting bar data for %s %s", symbol, timeframe)
             self.chart.spinner(True)
 
             # Create a contract object for the stock symbol
-            contract = self.create_contract(symbol, 
+            contract = self.create_contract(symbol,
                                             config.SEC_TYPE,
                                             config.CONTRACT_EXCHANGE,
                                             config.DEFAULT_CURRENCY)
@@ -270,26 +276,39 @@ class ChartHandler:
         t = time.time()
         with open(f"screenshot-{t}.png", 'wb') as f:
             f.write(img)
+        logger.info("Screenshot taken and saved as screenshot-%s.png", t)
+
+    ###########################################################################
+    def save_chart_cvs(self, key):
+        """Handles the save button to save chart data to a CSV file."""
+        symbol = self.chart.topbar['symbol'].value
+        timeframe = self.chart.topbar['timeframe'].value
+        filename = f"{symbol}_{timeframe}.csv"
+        try:
+            df = self.chart.data
+            df.to_csv(filename, index=False)
+            logger.info("Chart data saved to %s", filename)
+        except Exception as e:
+            logger.error("Error saving chart data: %s", e)
 
     ###########################################################################
     def place_order(self, key):
         """Places a market order based on the key pressed."""
         symbol = self.chart.topbar['symbol'].value
 
-        contract = Contract()
-        contract.symbol = symbol
-        contract.secType = "STK"
-        contract.currency = "USD"
-        contract.exchange = "SMART"
+        contract = self.create_contract(symbol,
+                                config.SEC_TYPE,
+                                config.CONTRACT_EXCHANGE,
+                                config.DEFAULT_CURRENCY)
 
         order_action = "BUY" if key == 'B' else "SELL"
         order_quantity = 1
 
         self.client.reqIds(-1)
         time.sleep(2)
-
         if self.client.order_id:
-            logger.info("Order %s for %d shares of %s", order_action, order_quantity, symbol)
+            logger.info("Order %s[ID: %d] for %d shares of %s",
+                        order_action, self.client.order_id, order_quantity, symbol)
             order = Order()
             order.orderType = "MKT"
             order.totalQuantity = order_quantity
