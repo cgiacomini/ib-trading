@@ -6,7 +6,7 @@ from ibapi.client import EClient
 from ibapi.wrapper import EWrapper
 from ibapi.common import BarData
 from shared.queue_manager import data_queue  # Importing shared queue
-from logger import logger
+from shared.logger import logger
 
 ###############################################################################
 class IBClient(EWrapper, EClient):

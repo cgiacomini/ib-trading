@@ -8,7 +8,7 @@ from ibapi.wrapper import EWrapper
 
 # Import default configuration
 from shared.queue_manager import data_queue  # Importing shared queue
-from logger import logger
+from shared.logger import logger
 
 ###########################################################################
 class MockEWrapper(EWrapper):
@@ -85,11 +85,9 @@ class MockEClient(EClient):
                           keepUpToDate, chartOptions):
         logger.info("[Mock Client] Simulating reqHistoricalData for ReqId: %s", reqId)
 
-        # self.chart_handler.chart.topbar.textbox('symbol', contract.symbol)
-        # self.chart_handler.chart.topbar.textbox('timeframe', barSizeSetting).selected = True
-
         datafile = f"{contract.symbol}_{barSizeSetting.replace(" ","_")}.csv"
-        self.mock_data_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "../DataFiles", datafile)
+        self.mock_data_path = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                                           "../DataFiles", datafile)
         logger.info("Using data file: %s", self.mock_data_path)
         if not os.path.exists(self.mock_data_path):
             logger.error("[ERROR] Data file does not exist: %s", self.mock_data_path)
@@ -119,7 +117,8 @@ class MockEClient(EClient):
                     self.wrapper.historicalData(req_id, bar)
                     bars.append(bar)
                 if bars:
-                    self.wrapper.historicalDataEnd(req_id, bars[0].date, bars[-1].date)
+                    self.wrapper.historicalDataEnd(req_id, bars[0].date, 
+                                                   bars[-1].date)
 
         except FileNotFoundError:
             logger.error("[ERROR] File not found: %s", filepath)

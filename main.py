@@ -2,8 +2,8 @@
 import time
 import sys
 import os
-import config
-from logger import logger
+from shared import config
+from shared.logger import logger
 from chart_handler.chart import ChartHandler
 from ib_client.ib_client import IBClient
 from ib_client.ib_client_mock import MockIBClient
@@ -13,6 +13,7 @@ from ib_client.ib_client_mock import MockIBClient
 if __name__ == "__main__":
     logger.info("Starting IB Client...")
     logger.info("PYWEBVIEW_GUI: %s", config.PYWEBVIEW_GUI)
+
 
     chart_handler = ChartHandler()
 

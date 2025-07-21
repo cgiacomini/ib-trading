@@ -11,8 +11,8 @@ from signals_handler import signals_handler
 from shared.queue_manager import data_queue  # Import shared queue
 
 # Import default configuration
-import config
-from logger import logger
+from shared import config
+from shared.logger import logger
 
 
 ###############################################################################

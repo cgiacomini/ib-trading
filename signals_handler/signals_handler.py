@@ -1,7 +1,7 @@
 import pandas as pd
-import config
 from typing import Dict, List 
-from logger import logger
+from shared.logger import logger
+from shared import config
 
 ###############################################################################
 def sma_crossover_signal(bars: List[Dict]) -> str | None:
