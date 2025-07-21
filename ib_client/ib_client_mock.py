@@ -1,4 +1,5 @@
 """Module to mock EClient and EWrapper"""
+import os
 import datetime
 import csv
 from ibapi.common import BarData
@@ -58,7 +59,7 @@ class MockEClient(EClient):
     def __init__(self, wrapper: EWrapper):
         super().__init__(wrapper)
         self.current_req_id = 0
-        self.mock_data_path = 'mock_data.csv'
+        self.mock_data_path = None
 
     ###########################################################################
     def connect(self, host: str, port: int, clientId: int) -> bool:
@@ -83,6 +84,16 @@ class MockEClient(EClient):
                           barSizeSetting, whatToShow, useRTH, formatDate,
                           keepUpToDate, chartOptions):
         logger.info("[Mock Client] Simulating reqHistoricalData for ReqId: %s", reqId)
+
+        # self.chart_handler.chart.topbar.textbox('symbol', contract.symbol)
+        # self.chart_handler.chart.topbar.textbox('timeframe', barSizeSetting).selected = True
+
+        datafile = f"{contract.symbol}_{barSizeSetting.replace(" ","_")}.csv"
+        self.mock_data_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "../DataFiles", datafile)
+        logger.info("Using data file: %s", self.mock_data_path)
+        if not os.path.exists(self.mock_data_path):
+            logger.error("[ERROR] Data file does not exist: %s", self.mock_data_path)
+            return
         self.simulate_historical_data_from_csv(reqId, self.mock_data_path)
 
     ###########################################################################
@@ -96,7 +107,7 @@ class MockEClient(EClient):
                 reader = csv.DictReader(csvfile)
                 for row in reader:
                     bar = BarData()
-                    bar.date = row['date']
+                    bar.date = row['time']
                     bar.open = float(row['open'])
                     bar.high = float(row['high'])
                     bar.low = float(row['low'])

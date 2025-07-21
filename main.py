@@ -20,9 +20,6 @@ if __name__ == "__main__":
     if config.MOCK_MODE:
         logger.info("Running in MOCK mode.")
         client = MockIBClient()
-        # Optional: set path to mock CSV relative to script
-        script_dir = os.path.dirname(os.path.abspath(__file__))
-        client.set_mock_data_path(os.path.join(script_dir, "DataFiles/mock_data.csv"))
     else:
         client = IBClient()
         if not client.connect(config.DEFAULT_HOST, config.TRADING_PORT, config.DEFAULT_CLIENT_ID):

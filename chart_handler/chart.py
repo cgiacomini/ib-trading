@@ -101,6 +101,7 @@ class ChartHandler:
         # Request new data for the searched symbol and current timeframe
         self.request_historical_data(searched_string, chart.topbar['timeframe'].value)
         chart.topbar['symbol'].set(searched_string)
+
     ##########################################################################
     def on_row_click(self, row):
         self.chart.topbar['symbol'].set(row['symbol'])
