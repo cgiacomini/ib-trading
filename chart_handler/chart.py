@@ -285,8 +285,6 @@ class ChartHandler:
         symbol = self.chart.topbar['symbol'].value
         timeframe = self.chart.topbar['timeframe'].value
         filename = f"{symbol}_{timeframe.replace(' ','_')}.csv"
-        print(symbol)
-        print(filename)
         try:
             df = self.chart.candle_data
             df.to_csv(filename, index=False)
