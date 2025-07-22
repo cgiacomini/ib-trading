@@ -3,11 +3,10 @@ import os
 from dotenv import load_dotenv
 load_dotenv()
 
-config_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'eclient.cfg')
+config_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), '../eclient.cfg')
+print(config_path)
 cfg = configparser.ConfigParser()
 cfg.read(config_path)
-
-
 MOCK_MODE = cfg.getboolean('DEFAULT', 'MOCK_MODE', fallback=True)
 PYWEBVIEW_GUI = cfg.get('DEFAULT', 'PYWEBVIEW_GUI', fallback='qt')
 DEFAULT_HOST = cfg.get('DEFAULT', 'DEFAULT_HOST', fallback='127.0.0.1')
