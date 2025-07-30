@@ -1,6 +1,7 @@
 # logger.py
+import os, inspect
 import logging
-import os
+import inspect
 
 LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO").upper()
 if LOG_LEVEL not in ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]:
@@ -33,3 +34,22 @@ logger.propagate = False  # Prevents double logging if root logger is used
 # You can adjust the level to DEBUG if you want to see ibapi log
 # This filter out most of ibapi messages, only showing important warnings or errors.
 logging.getLogger("ibapi").setLevel(logging.WARNING)
+
+
+def log(level, message, *args):
+    method_name = inspect.stack()[1][3]
+    full_message = f"[{method_name}] {message}"
+    
+    if level == 'debug':
+        logger.debug(full_message, *args)
+    elif level == 'info':
+        logger.info(full_message, *args)
+    elif level == 'warning':
+        logger.warning(full_message, *args)
+    elif level == 'error':
+        logger.error(full_message, *args)
+    elif level == 'critical':
+        logger.critical(full_message, *args)
+    else:
+        logger.info(f"[{method_name}] Unknown log level '{level}': {message}", *args)
+

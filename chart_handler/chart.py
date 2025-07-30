@@ -1,6 +1,6 @@
 """ Chart Handler Module"""
 from typing import Dict, List
-import queue
+#import queue
 import time
 
 from ibapi.contract import Contract
@@ -12,7 +12,7 @@ from shared.queue_manager import data_queue  # Import shared queue
 
 # Import default configuration
 from shared import config
-from shared.logger import logger
+from shared.logger import log
 
 
 ###############################################################################
@@ -44,8 +44,10 @@ class ChartHandler:
                                    func=self.on_timeframe_selection)
         # Adds a button to take a screenshot of the chart
         self.chart.topbar.button('screenshot', 'Screenshot', func=self.take_screenshot)
-        # Adds a button to save the chart data to a CSV fil
+        # Adds a button to save the chart data to a CSV file
         self.chart.topbar.button('save', 'Save', func=self.save_chart_cvs)
+        # Adds a button to go in realtime mode
+        self.chart.topbar.button('realtime', 'Realtime', func=self.on_realtime_selection)
         # Set up a function to call when searching for symbol
         self.chart.events.search += self.on_search
         # Adds a hotkey to place a buy order
@@ -58,6 +60,7 @@ class ChartHandler:
         # Placeholder for short SMA lines
         self.sma_short_line = None
         self.sma_long_line = None
+        self.realtime_data_req_id = None
         # Create a table to display portfolio data
         self.table = self.chart.create_table(
             width=0.3, height=0.2,
@@ -76,6 +79,15 @@ class ChartHandler:
         self.client = client
 
     ###########################################################################
+    def on_realtime_selection(self, chart):
+        """Callback function for when realtime chart data is requested.
+        """
+        symbol = chart.topbar['symbol'].value
+        log('info', "Selected symbol: %s", symbol)
+        # Request new data for the selected symbol and timeframe
+        self.request_realtime_data(symbol)
+
+    ###########################################################################
     def on_timeframe_selection(self, chart):
         """Callback function for when a new timeframe is selected.
         A timeframe is the period of each bar in the chart (e.g., 1 min, 5 mins).
@@ -85,7 +97,17 @@ class ChartHandler:
         """
         symbol = chart.topbar['symbol'].value
         timeframe = chart.topbar['timeframe'].value
-        logger.info("Selected timeframe: %s for %s", timeframe, symbol)
+        log('info', "Selected timeframe: %s for %s", timeframe, symbol)
+
+        # Stop any ongoing market data requests for the current symbol
+        if hasattr(self.client, "stop_market_data") and self.realtime_data_req_id:
+            log('info', "Stopping market data for ReqId: %s", self.realtime_data_req_id)
+            # Stop the market data request
+            self.client.stop_market_data()
+            # Cancel the market data request for the current symbol
+            self.client.tickcancelMktDataString(self.realtime_data_req_id)
+            self.realtime_data_req_id = None
+
         # Request new data for the selected symbol and timeframe
         self.request_historical_data(symbol, timeframe)
 
@@ -97,13 +119,19 @@ class ChartHandler:
             chart (Chart): The chart instance where the search is performed.
             searched_string (str): The symbol string that was searched.
         """
-        logger.info("Searching for symbol: %s", searched_string)
+        log('info',"Searching for symbol: %s", searched_string)
         # Request new data for the searched symbol and current timeframe
         self.request_historical_data(searched_string, chart.topbar['timeframe'].value)
         chart.topbar['symbol'].set(searched_string)
 
     ##########################################################################
     def on_row_click(self, row):
+        """
+        Callback function for when a row in the portfolio table is clicked.
+        Args:
+            row (Dict): The clicked row data containing symbol, position, 
+                        avg cost, market price, and PL.
+        """
         self.chart.topbar['symbol'].set(row['symbol'])
         self.request_historical_data(row['symbol'], config.DEFAULT_TIMEFRAME)
         row['PL'] = round(row['PL']+1, 2)
@@ -123,7 +151,7 @@ class ChartHandler:
             data (Dict): the last received bar with the added new SMA column for
                          the given period.
         """
-
+        log('debug', "calculate SMA %d", period)
         temp_bars = bars + [data]
         temp_df   = pd.DataFrame(temp_bars)
         if len(temp_df) >= period:
@@ -139,11 +167,11 @@ class ChartHandler:
         """Displays the Simple Moving Average (SMA) on the chart."""
 
         line_attr = getattr(self, line_attr_name, None)
-        logger.debug("Showing SMA for period: %s", period)
+        log('debug', "Showing SMA for period: %s", period)
         sma_column = f'SMA_{period}'
 
         if sma_column not in df.columns:
-            logger.warning("Missing %s column in DataFrame", sma_column)
+            log('warning',"Missing %s column in DataFrame", sma_column)
             return
 
         sma_df = df[['date', sma_column]].dropna()
@@ -151,7 +179,7 @@ class ChartHandler:
             if line_attr:
                 line_attr.set(sma_df)
             else:
-                logger.info("Creating new SMA line for SMA_%s period", period)
+                log('info',"Creating new SMA line for SMA_%s period", period)
                 new_line = self.chart.create_line(
                     name=f"SMA_{period}",
                     color=color,
@@ -160,7 +188,7 @@ class ChartHandler:
                 new_line.set(sma_df)
                 setattr(self, line_attr_name, new_line)
         else:
-            logger.warning("No data available to display SMA_%s", period)
+            log('warning',"No data available to display SMA_%s", period)
             return
 
     ###########################################################################
@@ -173,21 +201,21 @@ class ChartHandler:
         bars = []
 
         try:
-            logger.info("Updating chart with new data from the queue.")
+            log('info', "Updating chart with new data from the queue.")
 
             # Drain the queue
             while not data_queue.empty():
                 data = data_queue.get_nowait()
+                log('debug', "Received data from the queue: %s", data)
                 self.update_data_with_sma(config.SMA_SHORT_PERIOD, bars, data)
                 self.update_data_with_sma(config.SMA_LONG_PERIOD, bars, data)
                 bars.append(data)
-                logger.debug("Received data from the queue: %s", data)
 
                 # Create markers BUY or SELL bases on some calculations
                 signals_handler.buy_or_sell_based_on_signals(bars)
 
             if not bars:
-                logger.info("No new data in queue.")
+                log('info',"No new data in queue.")
                 return
 
             # Convert to DataFrame
@@ -196,15 +224,17 @@ class ChartHandler:
             # Update chart
             # This uses columns: date/time, open, high, low, close, volume
             self.chart.set(df)
+            log('debug', "Show SMA %s line", config.SMA_SHORT_PERIOD)
             self.show_sma_line(config.SMA_SHORT_PERIOD,
                                config.SMA_SHORT_COLOR,
                                "sma_short_line", df)
+            log('debug', "Show SMA %s line", config.SMA_LONG_PERIOD)
             self.show_sma_line(config.SMA_LONG_PERIOD,
                                config.SMA_LONG_COLOR,
                                "sma_long_line", df)
 
-        except queue.Empty:
-            logger.warning("Queue was unexpectedly empty.")
+        except data_queue.empty():
+            log('warning',"Queue was unexpectedly empty.")
 
         finally:
             self.chart.spinner(False)
@@ -230,11 +260,13 @@ class ChartHandler:
                              (e.g., '1 mins', '5 mins').
         """
         if not self.client.connected:
-            logger.error("Not connected to IBKR")
+            log('error',"Not connected to IBKR")
             return None
         try:
-            logger.info("Requesting bar data for %s %s", symbol, timeframe)
+            log('info',"Requesting bar data for %s %s %s", symbol, timeframe, config.DEFAULT_HISTORICAL_DURATION)
             self.chart.spinner(True)
+
+            data_queue.queue.clear()
 
             # Create a contract object for the stock symbol
             contract = self.create_contract(symbol,
@@ -259,25 +291,39 @@ class ChartHandler:
             )
             time.sleep(1)
             self.chart.watermark(symbol)
-            logger.info("Requesting data received")
 
         except Exception as e:
-            logger.warning("Error retrieving historical data: %s", e)
+            log('warning',"Error retrieving historical data: %s", e)
             return None
 
     ###########################################################################
+    def request_realtime_data(self, symbol):
+
+        """
+        Requests real-time market data for a given symbol.
+        Args:
+            symbol (str): The stock symbol for which to request real-time data.
+        """
+        contract = self.create_contract(symbol,
+                                        config.SEC_TYPE,
+                                        config.CONTRACT_EXCHANGE,
+                                        config.DEFAULT_CURRENCY)
+        self.realtime_data_req_id = self.client.get_next_req_id()
+        self.client.reqMktData(self.realtime_data_req_id, contract,'', False, False)
+
+    ##########################################################################
     def show_chart(self):
         """Displays the chart in a blocking manner."""
         self.chart.show(block=True)
 
     ###########################################################################
-    def take_screenshot(self):
+    def take_screenshot(self, key):
         """Handles the screenshot button."""
         img = self.chart.screenshot()
         t = time.time()
         with open(f"screenshot-{t}.png", 'wb') as f:
             f.write(img)
-        logger.info("Screenshot taken and saved as screenshot-%s.png", t)
+        log('info',"Screenshot taken and saved as screenshot-%s.png", t)
 
     ###########################################################################
     def save_chart_cvs(self, key):
@@ -288,9 +334,9 @@ class ChartHandler:
         try:
             df = self.chart.candle_data
             df.to_csv(filename, index=False)
-            logger.info("Chart data saved to %s", filename)
+            log('info', "Chart data saved to %s", filename)
         except (IOError, AttributeError) as e:
-            logger.error("Error saving chart data: %s", e)
+            log('error', "Error saving chart data: %s", e)
 
     ###########################################################################
     def place_order(self, key):
@@ -308,7 +354,7 @@ class ChartHandler:
         self.client.reqIds(-1)
         time.sleep(2)
         if self.client.order_id:
-            logger.info("Order %s[ID: %d] for %d shares of %s",
+            log('info', "Order %s[ID: %d] for %d shares of %s",
                         order_action, self.client.order_id, order_quantity, symbol)
             order = Order()
             order.orderType = "MKT"
@@ -317,4 +363,4 @@ class ChartHandler:
 
             self.client.placeOrder(self.client.order_id, contract, order)
         else:
-            logger.error("Order ID not received from IB API. Cannot place order.")
+            log('error', "Order ID not received from IB API. Cannot place order.")

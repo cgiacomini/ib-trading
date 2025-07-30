@@ -1,7 +1,6 @@
 """ Main application code"""
 import time
 import sys
-import os
 from shared import config
 from shared.logger import logger
 from chart_handler.chart import ChartHandler
@@ -16,7 +15,8 @@ if __name__ == "__main__":
 
 
     chart_handler = ChartHandler()
-
+    client = None
+    
     # Choose real or mock client
     if config.MOCK_MODE:
         logger.info("Running in MOCK mode.")
@@ -32,5 +32,7 @@ if __name__ == "__main__":
 
     # Request initial data
     chart_handler.request_historical_data(config.INITIAL_SYMBOL,
-                                          config.DEFAULT_TIMEFRAME)
+                                         config.DEFAULT_TIMEFRAME)
     chart_handler.show_chart()
+    #chart_handler.chart.show()
+    chart_handler.request_realtime_data(config.INITIAL_SYMBOL)

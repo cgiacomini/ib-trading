@@ -1,6 +1,6 @@
 import pandas as pd
 from typing import Dict, List 
-from shared.logger import logger
+from shared.logger import log
 from shared import config
 
 ###############################################################################
@@ -17,6 +17,8 @@ def sma_crossover_signal(bars: List[Dict]) -> str | None:
         str | None: Returns "BUY" if a buy signal is detected, "SELL" if a sell signal is detected,
                     or None if no signal is detected.   
     """
+
+    log('debug', "generating SMA crossover signals")
     df = pd.DataFrame(bars)
     required_columns = [f'SMA_{config.SMA_SHORT_PERIOD}', f'SMA_{config.SMA_LONG_PERIOD}']
     # Check column existence
@@ -26,10 +28,10 @@ def sma_crossover_signal(bars: List[Dict]) -> str | None:
                     if col in df.columns and df[col].dropna().empty]
     if missing_columns or empty_columns:
         if missing_columns:
-            logger.debug(f"Missing columns: {missing_columns}")
+            log('debug', f"Missing columns: {missing_columns}")
             return None
         if empty_columns:
-            logger.debug(f"Columns with only NaN/None: {empty_columns}")
+            log('debug', f"Columns with only NaN/None: {empty_columns}")
             return None
 
     # This ensures that only rows where both SMA columns have valid values are kept.
@@ -46,7 +48,7 @@ def sma_crossover_signal(bars: List[Dict]) -> str | None:
     p_sma_long = sma_df.iloc[-2][f'SMA_{config.SMA_LONG_PERIOD}']
     c_sma_long = sma_df.iloc[-1][f'SMA_{config.SMA_LONG_PERIOD}']
 
-    #print (f'{p_sma_short} {c_sma_short} {p_sma_long} {c_sma_long}')
+    log('debug', "%f %f %f %f", p_sma_short, c_sma_short, p_sma_long, c_sma_long)
 
     if pd.notna(p_sma_short) and pd.notna(c_sma_short) and pd.notna(p_sma_long) and pd.notna(c_sma_long):
         if c_sma_short > c_sma_long and p_sma_short <= p_sma_long:
