@@ -16,7 +16,6 @@ if __name__ == "__main__":
 
     chart_handler = ChartHandler()
     client = None
-    
     # Choose real or mock client
     if config.MOCK_MODE:
         logger.info("Running in MOCK mode.")

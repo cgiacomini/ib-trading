@@ -46,7 +46,7 @@ class MockEWrapper(EWrapper):
         log('debug',"Received historical data for request ID %d: %s", reqId, data)
 
     ############################################################################
-    def tickcancelMktDataString(self, req_id):
+    def cancelMktData(self, req_id):
         
         """Handle cancellation of market data requests."""
 
@@ -59,11 +59,10 @@ class MockEWrapper(EWrapper):
     def historicalDataEnd(self, reqId: int, start: str, end: str):
         """Handle the end of historical data stream."""
 
-        log('info',"[Mock Wrapper] - ReqId: %s, Start: %s, \
-                    End: %s", reqId, start, end)
-        self.chart_handler.chart.spinner(False)
+        log('info',"[Mock Wrapper] - ReqId: %s, Start: %s, End: %s", reqId, start, end)
         # Update the chart with the new data
         self.chart_handler.update_chart()
+        self.chart_handler.chart.spinner(False)
 
     ###########################################################################
     def tickPrice(self, reqId, tickType, price, attrib):
@@ -188,6 +187,9 @@ class MockIBClient(MockEWrapper, MockEClient):
 
     ###########################################################################
     def stop_market_data(self):
+        """
+        Stop the market data simulation thread if it's running.
+        """
         if self.market_data_thread and self.market_data_thread.is_alive():
             self.stop_event.set()
             self.market_data_thread.join()
@@ -195,8 +197,8 @@ class MockIBClient(MockEWrapper, MockEClient):
 
     ############################################################################
     def simulate_market_data_from_csv(self, req_id: int, filepath: str):
-
-        """Simulate Market Data retrieval from a CSV file."""
+        """
+        Simulate Market Data retrieval from a CSV file."""
 
         try:
             ticks = []
@@ -205,18 +207,19 @@ class MockIBClient(MockEWrapper, MockEClient):
                 reader = csv.DictReader(csvfile)
                 for row in reader:
                     if self.stop_event.is_set(): 
-                       log('info',"[Mock Client] Market data simulation stopped.")
-                       break
+                        log('info',"[Mock Client] Market data simulation stopped.")
+                        break
 
                     self.wrapper.tickPrice(req_id,
                                     tickType = 4, # last price
-                                    price = float(row['price']),
+                                    price = float(row['close']),
                                     attrib = None)
                     ticks.append(row)
-                    time.sleep(0.3)
+                    time.sleep(0.1)  # Simulate a delay between ticks
+            # If there are ticks and the stop event is not set, cancel market
+            #  data subscription
             if ticks and not self.stop_event.is_set():
-                self.wrapper.tickcancelMktDataString(req_id)
-
+                self.wrapper.cancelMktData(req_id)
 
         except FileNotFoundError:
             log('error',"[ERROR] File not found: %s", filepath)
@@ -228,8 +231,9 @@ class MockIBClient(MockEWrapper, MockEClient):
                    genericTickList: str, snapshot: bool,
                    regulatorySnapshot: bool,
                    mktDataOptions: TagValueList = None):
-
-        """Simulate Market Data request"""
+        """
+        Simulate Market Data request
+        """
 
         log('info',"[Mock Client] Simulating reqMktData for ReqId: %s", reqId)
         data_file = f"{contract.symbol}_ticks.csv"
@@ -242,5 +246,6 @@ class MockIBClient(MockEWrapper, MockEClient):
 
         # Simulate market data retrieval
         self.stop_market_data()
-        self.market_data_thread = Thread(target=self.simulate_market_data_from_csv, args=(reqId, self.mock_data_path), daemon=False)
+        self.market_data_thread = Thread(target=self.simulate_market_data_from_csv, 
+                                         args=(reqId, self.mock_data_path), daemon=False)
         self.market_data_thread.start()

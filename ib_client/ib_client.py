@@ -164,7 +164,7 @@ class IBClient(EWrapper, EClient):
         log('debug',"Received historical data for request ID %d: %s", reqId, data)
 
     ############################################################################
-    def tickcancelMktDataString(self, req_id):
+    def cancelMktData(self, req_id):
 
         """
         Handle cancellation of market data requests.

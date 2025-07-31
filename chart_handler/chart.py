@@ -105,7 +105,7 @@ class ChartHandler:
             # Stop the market data request
             self.client.stop_market_data()
             # Cancel the market data request for the current symbol
-            self.client.tickcancelMktDataString(self.realtime_data_req_id)
+            self.client.cancelMktData(self.realtime_data_req_id)
             self.realtime_data_req_id = None
 
         # Request new data for the selected symbol and timeframe
@@ -141,7 +141,7 @@ class ChartHandler:
     ###########################################################################
     def update_data_with_sma(self, period: int, bars: List[Dict], data: Dict) -> Dict:
         """
-        Update received data bas adding a column for the SMA of the  given period
+        Update received data bars adding a column for the SMA of the  given period
         Args:
             period (int): The period over which to calculate the SMA.
             bars (Lis[Dict]): the current list of received data bars.
@@ -151,6 +151,7 @@ class ChartHandler:
             data (Dict): the last received bar with the added new SMA column for
                          the given period.
         """
+       
         log('debug', "calculate SMA %d", period)
         temp_bars = bars + [data]
         temp_df   = pd.DataFrame(temp_bars)
@@ -158,8 +159,13 @@ class ChartHandler:
             sma_value = temp_df['close'].rolling(window=period).mean().iloc[-1]
             data[f'SMA_{period}'] = round(sma_value, 2)
         else:
+            log('warning', "Not enough data to calculate SMA_%d", period)
+            # If not enough data, set SMA to None or NaN
             data[f'SMA_{period}'] = None
 
+        log('debug', "SMA_%d value: %s", period, data[f'SMA_{period}'])
+
+        # Return the updated data with the new SMA column
         return data
 
     ###########################################################################
@@ -202,7 +208,7 @@ class ChartHandler:
 
         try:
             log('info', "Updating chart with new data from the queue.")
-
+            self.chart.spinner(True)
             # Drain the queue
             while not data_queue.empty():
                 data = data_queue.get_nowait()
@@ -213,10 +219,6 @@ class ChartHandler:
 
                 # Create markers BUY or SELL bases on some calculations
                 signals_handler.buy_or_sell_based_on_signals(bars)
-
-            if not bars:
-                log('info',"No new data in queue.")
-                return
 
             # Convert to DataFrame
             df = pd.DataFrame(bars)
@@ -232,10 +234,8 @@ class ChartHandler:
             self.show_sma_line(config.SMA_LONG_PERIOD,
                                config.SMA_LONG_COLOR,
                                "sma_long_line", df)
-
         except data_queue.empty():
             log('warning',"Queue was unexpectedly empty.")
-
         finally:
             self.chart.spinner(False)
 
